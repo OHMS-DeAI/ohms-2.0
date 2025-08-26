@@ -1,0 +1,249 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+@layer base {
+  * {
+    @apply m-0 p-0 box-border;
+  }
+
+  body {
+    @apply bg-gradient-to-br from-background-dark to-background-darker text-text-primary font-sans leading-relaxed overflow-x-hidden min-h-screen text-base tracking-tight;
+  }
+}
+
+/* Custom utility classes using Tailwind */
+@layer utilities {
+  .glass {
+    @apply bg-white/10 backdrop-blur-[10px] border border-white/20 shadow-2xl shadow-black/30;
+  }
+
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl shadow-black/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/60;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-br from-primary via-secondary to-accent bg-clip-text text-transparent;
+  }
+
+  .gradient-text-primary {
+    @apply bg-gradient-to-br from-primary via-secondary to-accent bg-clip-text text-transparent bg-[length:200%_200%] animate-gradient-shift;
+  }
+}
+
+/* Smooth Animations */
+@layer base {
+  * {
+    @apply scroll-smooth;
+  }
+}
+
+@layer utilities {
+  /* Particle Background Container */
+  .particles-container {
+    @apply fixed inset-0 -z-10 pointer-events-none;
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-background-dark;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-primary rounded;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-secondary;
+  }
+}
+
+/* Custom keyframes */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(1.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gradientShift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Enhanced Spacing and Typography */
+@layer utilities {
+  .section-padding {
+    @apply py-16 px-4 sm:py-20 sm:px-6 lg:py-24 lg:px-8 xl:py-32 xl:px-8;
+  }
+
+  .container-wide {
+    @apply max-w-7xl mx-auto w-full;
+  }
+
+  .container-narrow {
+    @apply max-w-6xl mx-auto w-full;
+  }
+
+  .container-medium {
+    @apply max-w-4xl mx-auto w-full;
+  }
+
+  .container-small {
+    @apply max-w-2xl mx-auto w-full;
+  }
+
+  /* Heading utilities */
+  .heading-primary {
+    @apply text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold leading-tight;
+  }
+
+  .heading-secondary {
+    @apply text-2xl sm:text-3xl lg:text-4xl font-bold leading-tight;
+  }
+
+  .heading-tertiary {
+    @apply text-xl sm:text-2xl lg:text-3xl font-semibold leading-snug;
+  }
+
+  .text-body {
+    @apply text-base sm:text-lg leading-relaxed text-text-muted;
+  }
+
+  .text-body-large {
+    @apply text-lg sm:text-xl lg:text-2xl leading-relaxed text-text-muted max-w-4xl mx-auto;
+  }
+}
+
+/* Centered content utilities */
+@layer utilities {
+  .content-center {
+    @apply flex flex-col items-center text-center w-full;
+  }
+
+  .content-center > * {
+    @apply text-center;
+  }
+
+  .content-center .text-left,
+  .content-center .text-right {
+    @apply text-center;
+  }
+
+  .content-center h1,
+  .content-center h2,
+  .content-center h3,
+  .content-center h4,
+  .content-center h5,
+  .content-center h6 {
+    @apply text-center mx-auto;
+  }
+
+  .content-center p {
+    @apply text-center max-w-prose mx-auto;
+  }
+}
+
+/* Improved Grid Layouts */
+@layer utilities {
+  .grid-responsive {
+    @apply grid gap-8 sm:gap-10 lg:gap-12 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3;
+  }
+
+  .grid-responsive-4 {
+    @apply grid gap-8 sm:gap-10 lg:gap-12 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4;
+  }
+}
+
+/* Better spacing for mobile and card grids */
+@layer utilities {
+  .mobile-spacing {
+    @apply px-4;
+  }
+
+  .mobile-text {
+    @apply text-sm leading-relaxed;
+  }
+
+  .card-grid {
+    @apply grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
+  }
+}
+
+/* Button Styles */
+@layer utilities {
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-lg transition-all duration-300 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/40 hover:scale-105;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-6 sm:px-8 py-3 sm:py-4 bg-transparent border-2 border-primary text-primary font-semibold rounded-lg transition-all duration-300 hover:bg-primary hover:text-white hover:scale-105;
+  }
+}
+
+/* Enhanced Cards */
+@layer utilities {
+  .feature-card {
+    @apply bg-white/5 backdrop-blur-2xl border border-white/10 rounded-xl p-6 sm:p-8 text-center transition-all duration-300 hover:bg-white/10 hover:-translate-y-1 shadow-xl shadow-black/20 hover:shadow-2xl hover:shadow-black/40;
+  }
+
+  .stat-card {
+    @apply bg-white/5 backdrop-blur-2xl border border-white/10 rounded-xl p-4 sm:p-6 text-center transition-all duration-300 hover:scale-105 shadow-xl shadow-black/20;
+  }
+
+  .stat-value {
+    @apply text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-br from-primary via-secondary to-accent bg-clip-text text-transparent mb-2;
+  }
+
+  .stat-label {
+    @apply text-sm text-text-muted font-medium;
+  }
+}
+
+/* Better Text Hierarchy */
+@layer utilities {
+  .heading-primary {
+    @apply text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold leading-tight mb-6;
+  }
+
+  .heading-secondary {
+    @apply text-2xl sm:text-3xl lg:text-4xl font-bold leading-tight mb-4;
+  }
+
+  .heading-tertiary {
+    @apply text-xl sm:text-2xl lg:text-3xl font-semibold leading-snug mb-3;
+  }
+
+  .text-body {
+    @apply text-base sm:text-lg leading-relaxed text-text-muted;
+  }
+
+  .text-body-large {
+    @apply text-lg sm:text-xl lg:text-2xl leading-relaxed text-text-muted max-w-4xl mx-auto;
+  }
+}
+
+/* Custom keyframes for animations */
+@keyframes gradientShift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}

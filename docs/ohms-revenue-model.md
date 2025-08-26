@@ -1,7 +1,7 @@
 # OHMS 2.0 Complete Economic Analysis
 ## Revenue Model + ICP Storage Costs (Realistic Startup Numbers)
 
-**Version:** 2.0 • **Date:** January 2025 • **ICP Price:** $5.08 USD • **Lead:** Dedan Okware
+**Version:** 2.0 • **Date:** August 2025 • **ICP Price:** $5.08 USD • **Lead:** Dedan Okware
 
 ---
 

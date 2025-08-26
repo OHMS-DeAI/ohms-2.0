@@ -1,13 +1,13 @@
 # OHMS Website - Revolutionary AI Agent Platform Showcase
 
-[![OHMS 2.0](https://img.shields.io/badge/OHMS-2.0-blue.svg)](https://github.com/ohms-2-0)
+[![OHMS 2.0](https://img.shields.io/badge/OHMS-2.0-blue.svg)](https://github.com/OHMS-DeAI)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black.svg)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.0-cyan.svg)](https://tailwindcss.com/)
 [![Internet Computer](https://img.shields.io/badge/Internet_Computer-ICP-blue.svg)](https://internetcomputer.org/)
 
-**Canister ID:** `rjeaj-jyaaa-aaaau-abyka-cai`
-**Network:** Internet Computer Mainnet
+**Canister ID:** `rjeaj-jyaaa-aaaau-abyka-cai`\
+**Network:** Internet Computer Mainnet\
 **Direct URL:** https://rjeaj-jyaaa-aaaau-abyka-cai.icp0.io/
 
 The OHMS Website is the stunning marketing and informational platform that introduces the world to the revolutionary OHMS 2.0 autonomous agent ecosystem. Built with cutting-edge web technologies and deployed entirely on the Internet Computer, this website showcases the future of decentralized AI agent creation.
@@ -181,61 +181,11 @@ graph LR
 
 ### Technical Optimizations
 
-```typescript
-// Next.js Configuration for ICP Deployment
-// next.config.ts
-import type { NextConfig } from 'next';
+The website implements comprehensive technical optimizations including:
 
-const nextConfig: NextConfig = {
-  output: 'export',
-  trailingSlash: true,
-  images: {
-    unoptimized: true, // Required for ICP deployment
-    formats: ['image/webp', 'image/avif'],
-  },
-  experimental: {
-    optimizePackageImports: ['lucide-react', 'framer-motion'],
-  },
-  compiler: {
-    removeConsole: process.env.NODE_ENV === 'production',
-  },
-  // ICP-specific optimizations
-  assetPrefix: process.env.NODE_ENV === 'production' ? undefined : undefined,
-};
-
-export default nextConfig;
-```
-
-### Bundle Analysis & Optimization
-
-```typescript
-// Bundle optimization configuration
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
-  enabled: process.env.ANALYZE === 'true',
-});
-
-module.exports = withBundleAnalyzer({
-  webpack: (config, { dev }) => {
-    if (!dev) {
-      // Production optimizations
-      config.optimization.splitChunks.chunks = 'all';
-      config.optimization.splitChunks.cacheGroups = {
-        vendor: {
-          test: /[\\/]node_modules[\\/]/,
-          name: 'vendors',
-          chunks: 'all',
-        },
-        ui: {
-          test: /[\\/]components[\\/]ui[\\/]/,
-          name: 'ui-components',
-          chunks: 'all',
-        },
-      };
-    }
-    return config;
-  },
-});
-```
+- **Next.js Configuration**: Optimized for ICP deployment with static export, image optimization, and efficient asset handling
+- **Bundle Analysis & Optimization**: Advanced webpack configuration for production builds with code splitting and vendor chunking
+- **Critical Resource Optimization**: Prioritized loading of essential assets for improved performance
 
 ## 🔧 Technology Stack & Architecture
 
@@ -254,74 +204,21 @@ module.exports = withBundleAnalyzer({
 
 ### ICP-Specific Optimizations
 
-```typescript
-// ICP Asset Configuration
-// .ic-assets.json5
-{
-  "fields": [
-    {
-      "name": "index.html",
-      "asset": "index.html",
-      "folder": "dist",
-      "filename": "index.html",
-      "headers": {
-        "Content-Type": "text/html",
-        "Cache-Control": "public, max-age=31536000, immutable"
-      }
-    },
-    {
-      "name": "styles",
-      "match": "*.css",
-      "headers": {
-        "Content-Type": "text/css",
-        "Cache-Control": "public, max-age=31536000, immutable"
-      }
-    },
-    {
-      "name": "scripts",
-      "match": "*.js",
-      "headers": {
-        "Content-Type": "application/javascript",
-        "Cache-Control": "public, max-age=31536000, immutable"
-      }
-    },
-    {
-      "name": "images",
-      "match": "*.{png,jpg,jpeg,webp,avif,svg}",
-      "headers": {
-        "Content-Type": "image/*",
-        "Cache-Control": "public, max-age=31536000, immutable"
-      }
-    }
-  ]
-}
-```
+The website is specifically optimized for Internet Computer deployment with:
+
+- **Asset Configuration**: Proper content-type headers and caching strategies for static assets
+- **Immutable Asset Handling**: Long-term caching for JavaScript, CSS, and image files
+- **Content Distribution**: Global CDN through ICP's edge network infrastructure
 
 ## 📱 Responsive Design & Mobile Experience
 
 ### Breakpoint Strategy
 
-```scss
-// Tailwind CSS Custom Breakpoints
-$screens: (
-  'xs': '475px',
-  'sm': '640px',
-  'md': '768px',
-  'lg': '1024px',
-  'xl': '1280px',
-  '2xl': '1536px',
-  '3xl': '1920px',
-);
+The website uses a comprehensive breakpoint strategy optimized for all device types:
 
-// Mobile-first responsive utilities
-.mobile-menu {
-  @apply fixed inset-0 z-50 bg-background/95 backdrop-blur-sm;
-}
-
-.hero-content {
-  @apply px-4 py-8 sm:px-6 sm:py-12 lg:px-8 lg:py-16;
-}
-```
+- **Custom Breakpoints**: Extended responsive design from mobile to ultra-wide displays
+- **Mobile-First Approach**: Progressive enhancement from small screens to large displays
+- **Utility Classes**: Consistent spacing and layout utilities across all breakpoints
 
 ### Mobile Optimization Features
 
@@ -335,65 +232,12 @@ $screens: (
 
 ### SEO Optimization Implementation
 
-```typescript
-// Metadata configuration for each page
-export const metadata: Metadata = {
-  title: 'OHMS 2.0 - Revolutionary Autonomous AI Agent Platform',
-  description: 'Transform natural language instructions into autonomous AI agents. Experience the future of decentralized AI with NOVAQ compression and on-chain intelligence.',
-  keywords: ['AI', 'autonomous agents', 'decentralized AI', 'Internet Computer', 'NOVAQ', 'machine learning'],
-  authors: [{ name: 'OHMS Team' }],
-  creator: 'OHMS',
-  publisher: 'OHMS',
-  formatDetection: {
-    email: false,
-    address: false,
-    telephone: false,
-  },
-  metadataBase: new URL('https://rjeaj-jyaaa-aaaau-abyka-cai.icp0.io'),
-  alternates: {
-    canonical: '/',
-  },
-  openGraph: {
-    title: 'OHMS 2.0 - Autonomous AI Agent Platform',
-    description: 'Create autonomous AI agents from natural language instructions. Revolutionary NOVAQ compression enables on-chain AI intelligence.',
-    url: 'https://rjeaj-jyaaa-aaaau-abyka-cai.icp0.io',
-    siteName: 'OHMS',
-    images: [
-      {
-        url: '/og-image.jpg',
-        width: 1200,
-        height: 630,
-        alt: 'OHMS 2.0 Platform Preview',
-      },
-    ],
-    locale: 'en_US',
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'OHMS 2.0 - Autonomous AI Agent Platform',
-    description: 'Transform natural language into autonomous AI intelligence. Experience the future of decentralized AI.',
-    images: ['/twitter-image.jpg'],
-    creator: '@ohms_ai',
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      'max-video-preview': -1,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
-    },
-  },
-  verification: {
-    google: 'google-site-verification-code',
-    yandex: 'yandex-verification-code',
-    yahoo: 'yahoo-site-verification-code',
-  },
-};
-```
+The website implements comprehensive SEO optimization including:
+
+- **Structured Metadata**: Complete Open Graph and Twitter Card metadata for social media sharing
+- **Technical SEO**: Proper robots.txt, sitemap, and canonical URLs
+- **Performance SEO**: Core Web Vitals optimization and fast loading times
+- **Content SEO**: Strategic keyword placement and semantic HTML structure
 
 ### Content Strategy
 
@@ -435,74 +279,21 @@ graph LR
 
 ### ICP Deployment Strategy
 
-```bash
-# Build optimized static export
-npm run build
-npm run export
+The website follows a comprehensive deployment strategy for ICP mainnet:
 
-# Deploy to ICP mainnet
-dfx deploy --network ic ohms_website
-
-# Verify deployment
-curl -I https://rjeaj-jyaaa-aaaau-abyka-cai.icp0.io/
-
-# Check canister cycles
-dfx canister --network ic status rjeaj-jyaaa-aaaau-abyka-cai
-```
+- **Static Export**: Optimized build process for static asset generation
+- **Canister Deployment**: Automated deployment to ICP mainnet with proper configuration
+- **Deployment Verification**: Automated testing and monitoring of live deployment
+- **Resource Monitoring**: Continuous monitoring of canister cycles and performance
 
 ### Performance Monitoring
 
-```typescript
-// Performance monitoring implementation
-export const usePerformanceMonitor = () => {
-  useEffect(() => {
-    // Core Web Vitals tracking
-    if (typeof window !== 'undefined') {
-      import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
-        getCLS(console.log);
-        getFID(console.log);
-        getFCP(console.log);
-        getLCP(console.log);
-        getTTFB(console.log);
-      });
-    }
-  }, []);
+The website implements comprehensive performance monitoring including:
 
-  return null;
-};
-```
-
-## 📊 Analytics & User Insights
-
-### Privacy-Preserving Analytics
-
-```typescript
-// ICP-based analytics (privacy-preserving)
-export const useAnalytics = () => {
-  const trackEvent = async (eventName: string, properties: Record<string, any>) => {
-    try {
-      // ICP canister call for analytics
-      await fetch('/api/analytics', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          event: eventName,
-          properties,
-          timestamp: Date.now(),
-          // No personal identifiable information
-        }),
-      });
-    } catch (error) {
-      console.error('Analytics error:', error);
-    }
-  };
-
-  return { trackEvent };
-};
-```
-
+- **Core Web Vitals Tracking**: Continuous monitoring of LCP, FID, CLS, and other key metrics
+- **Real-time Analytics**: Performance data collection and analysis
+- **User Experience Metrics**: Conversion tracking and user journey analytics
+- **Technical Performance**: Loading times, error rates, and system health monitoring
 ## 🎯 Conversion Optimization
 
 ### Call-to-Action Strategy
@@ -542,41 +333,7 @@ graph LR
     Exit --> Primary
 ```
 
-## 🌐 Internationalization & Localization
 
-### Multi-Language Support
-
-```typescript
-// Internationalization configuration
-const i18n = {
-  defaultLocale: 'en',
-  locales: ['en', 'es', 'fr', 'de', 'zh', 'ja'],
-  localeDetection: true,
-};
-
-export default i18n;
-
-// Localized content structure
-export const content = {
-  en: {
-    hero: {
-      title: 'Transform Instructions into Autonomous AI Intelligence',
-      subtitle: 'Create sophisticated AI agents from natural language. Experience the future of decentralized AI.',
-    },
-    features: {
-      title: 'Revolutionary Capabilities',
-      items: [
-        {
-          title: 'Natural Language Agent Creation',
-          description: 'Transform text instructions into autonomous AI agents in seconds.',
-        },
-        // ... more features
-      ],
-    },
-  },
-  // Other languages...
-};
-```
 
 ## 📋 Success Metrics
 
@@ -613,7 +370,7 @@ export const content = {
 
 ### Community
 - [OHMS Discord](https://discord.gg/ohms)
-- [GitHub Repository](https://github.com/ohms-2-0/ohms-website)
+- [GitHub Repository](https://github.com/OHMS-DeAI/ohms-website)
 - [ICP Community Forum](https://forum.dfinity.org/)
 
 ---

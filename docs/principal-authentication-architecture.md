@@ -30,6 +30,7 @@ The OHMS 2.0 Real Principal Authentication Architecture replaces all Google OAut
 ### Core Authentication Flow
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#f8f9fa', 'primaryTextColor': '#000000', 'primaryBorderColor': '#ffffff', 'lineColor': '#dc3545', 'lineWidth': '4px', 'secondaryColor': '#e3f2fd', 'tertiaryColor': '#f3e5f5', 'fontFamily': 'Arial', 'fontSize': '12px', 'fontWeight': 'bold'}}}%%
 sequenceDiagram
     participant User
     participant OHMSApp

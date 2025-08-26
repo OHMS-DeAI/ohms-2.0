@@ -23,158 +23,197 @@
 ## System Architecture Diagram
 
 ```mermaid
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'background': '#e5e5e5',
+    'primaryColor': '#e5e5e5',
+    'sectionBkgColor': '#e5e5e5',
+    'altSectionBkgColor': '#cccccc',
+    'primaryTextColor': '#000000',
+    'primaryBorderColor': '#ffffff',
+    'lineColor': '#dc3545',
+    'lineWidth': '3px',
+    'edgeStyle': 'solid',
+    'fontFamily': 'Arial',
+    'fontSize': '13px',
+    'fontWeight': 'bold'
+  }
+}}%%
+
 graph TB
-    subgraph "Admin Layer"
-        AdminUI[Admin Interface]
-        AdminAuth[Admin Authentication]
-        NOVAQProcessor[NOVAQ Processor]
-        ModelValidator[Model Validator]
-        ICPDeployer[ICP Deployer]
-    end
-    
-    subgraph "User Layer"
-        UserUI[User Interface]
-        UserAuth[User Authentication]
-        InstructionInput[Instruction Input]
-        AgentSpinner[Agent Spinner]
-        AgentDashboard[Agent Dashboard]
-    end
-    
-    subgraph "Authentication & User Management"
-        IIv2[Internet Identity v2]
-        PrincipalAuth[Principal Authentication]
 
-        SessionManager[Session Manager]
-    end
-    
-    subgraph "Model Repository (ICP) - Admin Controlled"
-        ICPCanister[ICP Canisters]
-        ModelStorage[Model Storage]
-        ModelAPI[Model APIs]
-        AccessControl[Access Control]
-    end
-    
-    subgraph "Agent Generation System - User Driven"
-        InstructionAnalyzer[Instruction Analyzer]
-        ModelSelector[Model Selector]
-        AgentFactory[Agent Factory]
-        AutonomousAgents[Autonomous Agents]
-    end
-    
-    subgraph "Execution Engine"
-        AutonomousOrchestrator[Autonomous Orchestrator]
-        ParallelExecutor[Parallel Executor]
-        SelfCoordinator[Self Coordinator]
-        PerformanceMonitor[Performance Monitor]
-    end
-    
-    subgraph "Economics & Control"
-        RateLimiter[Rate Limiter]
-        TokenTracker[Token Tracker]
-        UsageMonitor[Usage Monitor]
-        BillingEngine[Billing Engine]
-        MonthlyQuotas[Monthly Quotas]
-    end
-    
-    subgraph "Monitoring & Analytics"
-        PlatformMonitor[Platform Monitor]
-        UserAnalytics[User Analytics]
-        AdminAnalytics[Admin Analytics]
-        AlertSystem[Alert System]
-    end
-    
-    %% Admin Flow
-    AdminUI --> AdminAuth
-    AdminAuth --> IIv2
-    AdminUI --> APQProcessor
-    APQProcessor --> ModelValidator
-    ModelValidator --> ICPDeployer
-    ICPDeployer --> ICPCanister
-    ICPCanister --> ModelStorage
-    ICPCanister --> ModelAPI
-    ICPCanister --> AccessControl
-    
-    %% User Flow
-    UserUI --> UserAuth
-    UserAuth --> IIv2
-    IIv2 --> PrincipalAuth
+%% -- LINK STYLE FOR ALL EDGES --
+linkStyle default stroke:#dc3545,stroke-width:3px,fill:none
 
-    UserUI --> InstructionInput
-    InstructionInput --> InstructionAnalyzer
-    InstructionAnalyzer --> ModelSelector
-    ModelSelector --> ModelAPI
-    ModelSelector --> AgentFactory
-    AgentFactory --> AutonomousAgents
-    
-    %% Payment Flow
-    Stripe --> MarketData
-    MarketData --> ICPConversion
-    ICPConversion --> SubManager
-    SubManager --> QuotaManager
-    QuotaManager --> MonthlyQuotas
-    
-    %% Autonomous Execution Flow
-    AutonomousAgents --> AutonomousOrchestrator
-    AutonomousOrchestrator --> ParallelExecutor
-    ParallelExecutor --> SelfCoordinator
-    SelfCoordinator --> PerformanceMonitor
-    
-    %% Rate Limiting & Control Flow
-    SubManager --> RateLimiter
-    RateLimiter --> TokenTracker
-    TokenTracker --> UsageMonitor
-    UsageMonitor --> BillingEngine
-    
-    %% Monitoring Flow
-    PerformanceMonitor --> PlatformMonitor
-    PlatformMonitor --> UserAnalytics
-    PlatformMonitor --> AdminAnalytics
-    AdminAnalytics --> AdminUI
-    UserAnalytics --> UserUI
-    PlatformMonitor --> AlertSystem
-    
-    %% Control & Feedback Loops
-    QuotaManager --> AgentFactory
-    MonthlyQuotas --> InstructionAnalyzer
-    BillingEngine --> Stripe
-    AlertSystem --> AdminUI
-    UsageMonitor --> UserUI
+%% -- LAYERS --
+subgraph "Admin Layer"
+    AdminUI["Admin Interface"]
+    AdminAuth["Admin Authentication"]
+    NOVAQProcessor["NOVAQ Processor"]
+    ModelValidator["Model Validator"]
+    ICPDeployer["ICP Deployer"]
+end
+
+subgraph "User Layer"
+    UserUI["User Interface"]
+    UserAuth["User Authentication"]
+    InstructionInput["Instruction Input"]
+    AgentSpinner["Agent Spinner"]
+    AgentDashboard["Agent Dashboard"]
+end
+
+subgraph "Authentication & User Management"
+    IIv2["Internet Identity v2"]
+    PrincipalAuth["Principal Authentication"]
+    SessionManager["Session Manager"]
+end
+
+subgraph "Model Repository (ICP) - Admin Controlled"
+    ICPCanister["ICP Canisters"]
+    ModelStorage["Model Storage"]
+    ModelAPI["Model APIs"]
+    AccessControl["Access Control"]
+end
+
+subgraph "Agent Generation System - User Driven"
+    InstructionAnalyzer["Instruction Analyzer"]
+    ModelSelector["Model Selector"]
+    AgentFactory["Agent Factory"]
+    AutonomousAgents["Autonomous Agents"]
+end
+
+subgraph "Execution Engine"
+    AutonomousOrchestrator["Autonomous Orchestrator"]
+    ParallelExecutor["Parallel Executor"]
+    SelfCoordinator["Self Coordinator"]
+    PerformanceMonitor["Performance Monitor"]
+end
+
+subgraph "Economics & Control"
+    RateLimiter["Rate Limiter"]
+    TokenTracker["Token Tracker"]
+    UsageMonitor["Usage Monitor"]
+    BillingEngine["Billing Engine"]
+    MonthlyQuotas["Monthly Quotas"]
+end
+
+subgraph "Monitoring & Analytics"
+    PlatformMonitor["Platform Monitor"]
+    UserAnalytics["User Analytics"]
+    AdminAnalytics["Admin Analytics"]
+    AlertSystem["Alert System"]
+end
+
+%% -- FLOWS --
+
+AdminUI -->|Auth| AdminAuth
+AdminAuth -->|Verify| IIv2
+AdminUI -->|Process| NOVAQProcessor
+NOVAQProcessor -->|Validate| ModelValidator
+ModelValidator -->|Deploy| ICPDeployer
+ICPDeployer -->|Store| ICPCanister
+ICPCanister -->|Manage| ModelStorage
+ICPCanister -->|Expose| ModelAPI
+ICPCanister -->|Control| AccessControl
+
+UserUI -->|Auth| UserAuth
+UserAuth -->|Verify| IIv2
+IIv2 -->|Principal| PrincipalAuth
+UserUI -->|Input| InstructionInput
+InstructionInput -->|Analyze| InstructionAnalyzer
+InstructionAnalyzer -->|Select| ModelSelector
+ModelSelector -->|Query| ModelAPI
+ModelSelector -->|Create| AgentFactory
+AgentFactory -->|Deploy| AutonomousAgents
+
+AutonomousAgents -->|Orchestrate| AutonomousOrchestrator
+AutonomousOrchestrator -->|Execute| ParallelExecutor
+ParallelExecutor -->|Coordinate| SelfCoordinator
+SelfCoordinator -->|Monitor| PerformanceMonitor
+
+PrincipalAuth -->|Limit| RateLimiter
+RateLimiter -->|Track| TokenTracker
+TokenTracker -->|Monitor| UsageMonitor
+UsageMonitor -->|Bill| BillingEngine
+BillingEngine -->|Quota| MonthlyQuotas
+
+PerformanceMonitor -->|Report| PlatformMonitor
+PlatformMonitor -->|Analyze| UserAnalytics
+PlatformMonitor -->|Admin Data| AdminAnalytics
+AdminAnalytics -->|Display| AdminUI
+UserAnalytics -->|Display| UserUI
+PlatformMonitor -->|Alert| AlertSystem
+
+MonthlyQuotas -->|Enforce| AgentFactory
+MonthlyQuotas -->|Limit| InstructionAnalyzer
+AlertSystem -->|Notify| AdminUI
+UsageMonitor -->|Update| UserUI
+
+%% -- NODE COLORING (Class Definitions) --
+
+classDef default fill:#e5e5e5,stroke:#ffffff,stroke-width:1px,color:#000000,font-weight:bold
+classDef adminLayer fill:#1976d2,stroke:#ffffff,stroke-width:1px,color:#ffffff,font-weight:bold
+classDef userLayer fill:#388e3c,stroke:#ffffff,stroke-width:1px,color:#ffffff,font-weight:bold
+classDef authLayer fill:#f57c00,stroke:#ffffff,stroke-width:1px,color:#ffffff,font-weight:bold
+classDef modelLayer fill:#7b1fa2,stroke:#ffffff,stroke-width:1px,color:#ffffff,font-weight:bold
+classDef agentLayer fill:#d32f2f,stroke:#ffffff,stroke-width:1px,color:#ffffff,font-weight:bold
+classDef execLayer fill:#00796b,stroke:#ffffff,stroke-width:1px,color:#ffffff,font-weight:bold
+classDef econLayer fill:#e91e63,stroke:#ffffff,stroke-width:1px,color:#ffffff,font-weight:bold
+classDef monitorLayer fill:#689f38,stroke:#ffffff,stroke-width:1px,color:#ffffff,font-weight:bold
+
+class AdminUI,AdminAuth,NOVAQProcessor,ModelValidator,ICPDeployer adminLayer
+class UserUI,UserAuth,InstructionInput,AgentSpinner,AgentDashboard userLayer
+class IIv2,PrincipalAuth,SessionManager authLayer
+class ICPCanister,ModelStorage,ModelAPI,AccessControl modelLayer
+class InstructionAnalyzer,ModelSelector,AgentFactory,AutonomousAgents agentLayer
+class AutonomousOrchestrator,ParallelExecutor,SelfCoordinator,PerformanceMonitor execLayer
+class RateLimiter,TokenTracker,UsageMonitor,BillingEngine,MonthlyQuotas econLayer
+class PlatformMonitor,UserAnalytics,AdminAnalytics,AlertSystem monitorLayer
+
 ```
 
 ## Real II v2 Principal Authentication Flow
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#f8f9fa', 'primaryTextColor': '#000000', 'primaryBorderColor': '#ffffff', 'lineColor': '#dc3545', 'lineWidth': '4px', 'sectionBkgColor': '#f8f9fa', 'altSectionBkgColor': '#e9ecef', 'secondaryColor': '#6c757d', 'tertiaryColor': '#495057', 'fontFamily': 'Arial', 'fontSize': '12px', 'fontWeight': 'bold'}}}%%
 flowchart TD
-    Start([User Visits OHMS]) --> IIv2Auth[Internet Identity v2 Authentication]
+    Start(["<b>User Visits OHMS</b>"]) --> IIv2Auth["<b>Internet Identity v2 Authentication</b>"]
     
-    IIv2Auth --> AuthChoice{Authentication Method}
+    IIv2Auth --> AuthChoice{"<b>Authentication Method</b>"}
     
-    AuthChoice -->|Passkey| PasskeyFlow[Passkey Authentication]
-    AuthChoice -->|WebAuthn| WebAuthnFlow[WebAuthn Authentication]
+    AuthChoice -->|"<b>Passkey</b>"| PasskeyFlow["<b>Passkey Authentication</b>"]
+    AuthChoice -->|"<b>WebAuthn</b>"| WebAuthnFlow["<b>WebAuthn Authentication</b>"]
     
-    PasskeyFlow --> PrincipalExtraction[Extract Real Principal ID]
+    PasskeyFlow --> PrincipalExtraction["<b>Extract Real Principal ID</b>"]
     WebAuthnFlow --> PrincipalExtraction
     
-    PrincipalExtraction --> SubscriptionCheck{Active Subscription?}
+    PrincipalExtraction --> SubscriptionCheck{"<b>Active Subscription?</b>"}
     
-    SubscriptionCheck -->|No| PaymentFlow[Subscription Payment Flow]
-    SubscriptionCheck -->|Yes| Dashboard[OHMS Dashboard]
+    SubscriptionCheck -->|"<b>No</b>"| PaymentFlow["<b>Subscription Payment Flow</b>"]
+    SubscriptionCheck -->|"<b>Yes</b>"| Dashboard["<b>OHMS Dashboard</b>"]
     
-    PaymentFlow --> SelectPlan[Select Subscription Plan]
-    SelectPlan --> ICPPayment[ICP Payment Processing]
-    ICPPayment --> CyclesAllocation[Cycles Allocation]
+    PaymentFlow --> SelectPlan["<b>Select Subscription Plan</b>"]
+    SelectPlan --> ICPPayment["<b>ICP Payment Processing</b>"]
+    ICPPayment --> CyclesAllocation["<b>Cycles Allocation</b>"]
     CyclesAllocation --> Dashboard
     
-    Dashboard --> AgentCreation[Create Autonomous Agents]
-    AgentCreation --> UsageTracking[Track Usage & Cycles]
-    UsageTracking --> BillingCycle[Monthly Billing Cycle]
-    BillingCycle --> AutoRenewal[Auto-renewal Process]
+    Dashboard --> AgentCreation["<b>Create Autonomous Agents</b>"]
+    AgentCreation --> UsageTracking["<b>Track Usage & Cycles</b>"]
+    UsageTracking --> BillingCycle["<b>Monthly Billing Cycle</b>"]
+    BillingCycle --> AutoRenewal["<b>Auto-renewal Process</b>"]
     AutoRenewal --> Dashboard
-```
 
-
-
-
+    classDef default fill:#f8f9fa,stroke:#ffffff,stroke-width:1px,color:#000000,font-weight:bold
+    classDef startEnd fill:#388e3c,stroke:#ffffff,stroke-width:1px,color:#ffffff,font-weight:bold
+    classDef process fill:#1976d2,stroke:#ffffff,stroke-width:1px,color:#ffffff,font-weight:bold
+    classDef decision fill:#f57c00,stroke:#ffffff,stroke-width:1px,color:#ffffff,font-weight:bold
+    classDef payment fill:#7b1fa2,stroke:#ffffff,stroke-width:1px,color:#ffffff,font-weight:bold
+    
+    class Start,Dashboard startEnd
+    class IIv2Auth,PasskeyFlow,WebAuthnFlow,PrincipalExtraction,AgentCreation,UsageTracking,BillingCycle,AutoRenewal process
+    class AuthChoice,SubscriptionCheck decision
+    class PaymentFlow,SelectPlan,ICPPayment,CyclesAllocation payment
     OHMSIntegration --> SubscriptionManagement[Subscription Management]
     OHMSIntegration --> UsageTracking[Usage Tracking]
 ```
@@ -182,117 +221,169 @@ flowchart TD
 ## Real Principal Authentication Flow
 
 ```mermaid
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#4a90e2',
+    'primaryTextColor': '#000000',
+    'primaryBorderColor': '#2c5aa0',
+    'lineColor': '#1565c0',
+    'sectionBkgColor': '#f8f9fa',
+    'altSectionBkgColor': '#e9ecef',
+    'secondaryColor': '#6c757d',
+    'tertiaryColor': '#495057',
+    'fontFamily': 'Arial',
+    'fontSize': '12px',
+    'fontWeight': 'bold'
+  }
+}}%%
+
 sequenceDiagram
-    participant User
-    participant OHMS
-    participant IIv2
-    participant ICPLedger
+    participant User as "User"
+    participant OHMS as "OHMS"
+    participant IIv2 as "IIv2"
+    participant ICPLedger as "ICPLedger"
     
-    User->>OHMS: Visit OHMS Platform
-    OHMS->>IIv2: Redirect to II v2 Authentication
-    IIv2->>User: Show Authentication Options
-    Note over IIv2: "Continue with Passkey" or "Continue with WebAuthn"
+    User->>+OHMS: Visit OHMS Platform
+    OHMS->>+IIv2: Redirect to II v2 Authentication
+    IIv2-->>-User: Show Authentication Options
+    Note over IIv2: Continue with Passkey or WebAuthn
     
-    User->>IIv2: Select Authentication Method
-    IIv2->>User: Complete Authentication
+    User->>+IIv2: Select Authentication Method
+    IIv2-->>User: Complete Authentication
     User->>IIv2: Authenticate with Chosen Method
     IIv2->>IIv2: Verify & Create Anchor
-    IIv2->>OHMS: Return Real II v2 Principal ID
+    IIv2-->>-OHMS: Return Real II v2 Principal ID
     
     OHMS->>OHMS: Establish User Session
     
-    OHMS->>User: Check Subscription Status
+    OHMS-->>User: Check Subscription Status
     User->>OHMS: No active subscription
     
-    OHMS->>User: Show subscription options
+    OHMS-->>User: Show subscription options
     User->>OHMS: Select subscription tier
     
-    OHMS->>ICPLedger: Process ICP Payment
-    ICPLedger->>OHMS: Payment Confirmed
+    OHMS->>+ICPLedger: Process ICP Payment
+    ICPLedger-->>-OHMS: Payment Confirmed
     
     OHMS->>OHMS: Activate subscription
-    OHMS->>User: Subscription active - start creating agents
+    OHMS-->>-User: Subscription active - start creating agents
+
 ```
 
 ## System Workflow Diagram
 
 ```mermaid
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#f8f9fa',
+    'primaryTextColor': '#000000',
+    'primaryBorderColor': '#1565c0',
+    'lineColor': '#1565c0',
+    'secondaryColor': '#e3f2fd',
+    'tertiaryColor': '#f3e5f5',
+    'fontFamily': 'Arial',
+    'fontSize': '12px',
+    'fontWeight': 'bold'
+  }
+}}%%
+
 sequenceDiagram
-    participant Admin
-    participant AdminUI
-    participant APQ as APQ Processor
-    participant ICP as ICP Canister
-    participant User
-    participant UserUI
-    participant IIv2 as Internet Identity v2
-    participant Stripe as Stripe Payment
-    participant Agent as Agent Factory
-    participant Autonomous as Autonomous Agents
-    participant Billing
-    participant Monitor
+    participant Admin as "Admin"
+    participant AdminUI as "AdminUI"
+    participant APQ as "APQ Processor"
+    participant ICP as "ICP Canister"
+    participant User as "User"
+    participant UserUI as "UserUI"
+    participant IIv2 as "Internet Identity v2"
+    participant Stripe as "Stripe Payment"
+    participant Agent as "Agent Factory"
+    participant Autonomous as "Autonomous Agents"
+    participant Billing as "Billing"
+    participant Monitor as "Monitor"
     
     Note over Admin, ICP: Admin Model Management Phase
-    Admin->>AdminUI: Upload LLM/SLM Model
-    AdminUI->>APQ: Process with APQ Optimization
+    Admin->>+AdminUI: Upload LLM/SLM Model
+    AdminUI->>+APQ: Process with APQ Optimization
     APQ->>APQ: Apply 1000x Compression
     APQ->>APQ: Validate Performance
-    APQ->>ICP: Deploy Optimized Model
+    APQ->>+ICP: Deploy Optimized Model
     ICP->>ICP: Store in Canister
     ICP->>ICP: Generate User APIs
-    ICP-->>AdminUI: Model Available for Users
+    ICP-->>-AdminUI: Model Available for Users
     
     Note over User, Autonomous: User Authentication & Payment Phase
-    User->>UserUI: Access Platform
-    UserUI->>IIv2: Authenticate with Google
-    IIv2-->>UserUI: Authentication Success
-    UserUI->>Stripe: Check Subscription Status
-    Stripe-->>UserUI: No Active Subscription
-    UserUI->>User: Show Subscription Options
+    User->>+UserUI: Access Platform
+    UserUI->>+IIv2: Authenticate with Google
+    IIv2-->>-UserUI: Authentication Success
+    Note over IIv2: Continue with Google or Passkey
+    
+    UserUI->>+Stripe: Check Subscription Status
+    Stripe-->>-UserUI: No Active Subscription
+    UserUI-->>User: Show Subscription Options
     User->>UserUI: Select Subscription Tier
-    UserUI->>Stripe: Process Payment
-    Stripe-->>UserUI: Payment Success
+    UserUI->>+Stripe: Process Payment
+    Stripe-->>-UserUI: Payment Success
     UserUI->>Billing: Activate Subscription
     
     Note over User, Autonomous: User Agent Spinning Phase
     User->>UserUI: Provide Instructions/Prompts
-    UserUI->>Billing: Check Subscription & Quotas
-    Billing-->>UserUI: Quota Available
-    UserUI->>Agent: Analyze Instructions
-    Agent->>ICP: Query Available Models
-    ICP-->>Agent: Return Suitable Models
+    UserUI->>+Billing: Check Subscription & Quotas
+    Billing-->>-UserUI: Quota Available
+    UserUI->>+Agent: Analyze Instructions
+    Agent->>+ICP: Query Available Models
+    ICP-->>-Agent: Return Suitable Models
     Agent->>Agent: Create Specialized Agents
-    Agent-->>Autonomous: Deploy Autonomous Agents
+    Agent-->>-Autonomous: Deploy Autonomous Agents
     
     Note over Autonomous, Monitor: Autonomous Execution Phase
     Autonomous->>Autonomous: Execute Based on Instructions
     Autonomous->>Autonomous: Self-Coordinate Tasks
     Autonomous->>Autonomous: Parallel Processing
-    Autonomous->>Monitor: Report Performance
-    Monitor->>Billing: Update Usage
+    Autonomous->>+Monitor: Report Performance
+    Monitor->>+Billing: Update Usage
     Billing->>Billing: Track Tokens & Inference
-    Billing-->>UserUI: Usage Update
+    Billing-->>-UserUI: Usage Update
     
     Note over User, Monitor: Ongoing Operations
     User->>UserUI: Monitor Agent Performance
-    UserUI->>Autonomous: Request Status
-    Autonomous-->>UserUI: Autonomous Performance Data
-    Monitor->>AdminUI: Platform Analytics
-    Monitor->>Billing: Billing Updates
+    UserUI->>+Autonomous: Request Status
+    Autonomous-->>-UserUI: Autonomous Performance Data
+    Monitor-->>AdminUI: Platform Analytics
+    Monitor-->>-Billing: Billing Updates
+
 ```
 
 ## User Workflow Diagram
 
 ```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "background": "#e5e5e5",
+    "primaryTextColor": "#000000",
+    "fontFamily": "Arial",
+    "fontSize": "13px",
+    "fontWeight": "bold",
+    "lineColor": "#dc3545",
+    "lineWidth": "3px"
+  }
+}}%%
+
 flowchart TD
+
+    linkStyle default stroke:#dc3545,stroke-width:3px
+
     Start([User Starts Session])
-    
+
     subgraph "Authentication"
         Login[Connect Internet Identity v2]
         GoogleAuth[Google OAuth Flow]
         AuthCheck{Authentication Valid?}
         AuthFail[Authentication Failed]
     end
-    
+
     subgraph "Subscription Verification"
         SubCheck{Subscription Active?}
         SubExpired[Subscription Expired]
@@ -301,7 +392,7 @@ flowchart TD
         QuotaCheck{Monthly Quota Available?}
         QuotaExceeded[Monthly Agent Limit Reached]
     end
-    
+
     subgraph "Agent Creation from Instructions"
         Dashboard[User Dashboard]
         ProvideInstructions[Provide Instructions/Prompts]
@@ -311,61 +402,63 @@ flowchart TD
         SpinAgents[Spin Up Autonomous Agents]
         AgentsReady[Agents Ready & Autonomous]
     end
-    
+
     subgraph "Agent Monitoring"
         MonitorAgents[Monitor Agent Performance]
         ViewResults[View Agent Results]
         CheckUsage[Check Token/Inference Usage]
         ManageAgents[Manage Active Agents]
     end
-    
+
     subgraph "Account Management"
         ViewSubscription[View Subscription Details]
         ViewBilling[View Billing & Usage]
         UpgradePlan[Upgrade Subscription]
         ManageSettings[Manage Settings]
     end
-    
+
+    %% Flow Connections
     Start --> Login
     Login --> GoogleAuth
     GoogleAuth --> AuthCheck
     AuthCheck -->|Yes| SubCheck
     AuthCheck -->|No| AuthFail
     AuthFail --> Login
-    
+
     SubCheck -->|Active| QuotaCheck
     SubCheck -->|Expired| SubExpired
     SubExpired --> SelectPlan
     SelectPlan --> PaymentFlow
     PaymentFlow --> Dashboard
-    
+
     QuotaCheck -->|Available| Dashboard
     QuotaCheck -->|Exceeded| QuotaExceeded
     QuotaExceeded --> UpgradePlan
-    
+
     Dashboard --> ProvideInstructions
     Dashboard --> MonitorAgents
     Dashboard --> ViewSubscription
-    
+
     ProvideInstructions --> AnalyzeInstructions
     AnalyzeInstructions --> SelectModels
     SelectModels --> ConfigureAgents
     ConfigureAgents --> SpinAgents
     SpinAgents --> AgentsReady
-    
+
     AgentsReady --> MonitorAgents
     MonitorAgents --> ViewResults
     MonitorAgents --> CheckUsage
     MonitorAgents --> ManageAgents
-    
+
     ViewSubscription --> ViewBilling
     ViewBilling --> UpgradePlan
     ViewBilling --> ManageSettings
     UpgradePlan --> PaymentFlow
-    
+
     ViewResults --> Dashboard
     CheckUsage --> Dashboard
     ManageSettings --> Dashboard
+
 ```
 
 ## Admin Workflow Diagram

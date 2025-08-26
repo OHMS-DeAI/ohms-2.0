@@ -67,25 +67,52 @@ OHMS 2.0 implements a sophisticated tri-layer architecture that democratizes com
 - **Performance Monitoring:** Real-time agent coordination and results
 
 ```mermaid
+%%{init: {"theme": "default", "themeVariables": {
+  "fontSize": "16px",
+  "fontFamily": "Arial",
+  "primaryColor": "#f9f9f9",
+  "primaryTextColor": "#000000",
+  "nodeTextColor": "#000000",
+  "edgeLabelBackground":"#ffffff",
+  "fontWeight": "bold"
+}}}%%
+
 graph TB
+    %% Subgraphs
     subgraph "Admin Environment (Off-Chain)"
         ADMIN[Admin Workstation]
         NOVAQ[NOVAQ Processing]
         PYTORCH[PyTorch Teacher Models]
     end
-    
+
     subgraph "User Experience (On-Chain)"
         USER[User Interface]
         INSTRUCTIONS[Natural Language Instructions]
         AGENTS[Autonomous Agents]
     end
-    
+
     subgraph "ICP Infrastructure"
         MODEL[Model Repository]
         COORD[Agent Coordinator]
         ECON[Subscription Economics]
     end
-    
+
+    %% Custom Styling
+    style ADMIN fill:#fbd5d5,stroke:none
+    style NOVAQ fill:#fce7b2,stroke:none
+    style PYTORCH fill:#c4f0c5,stroke:none
+
+    style USER fill:#c7eaff,stroke:none
+    style INSTRUCTIONS fill:#d1c4e9,stroke:none
+    style AGENTS fill:#ffe082,stroke:none
+
+    style MODEL fill:#b2dfdb,stroke:none
+    style COORD fill:#f8bbd0,stroke:none
+    style ECON fill:#dcedc8,stroke:none
+
+    %% Connections
+    linkStyle default stroke:red,stroke-width:3px
+
     ADMIN --> NOVAQ
     NOVAQ --> MODEL
     USER --> INSTRUCTIONS
@@ -93,6 +120,7 @@ graph TB
     COORD --> AGENTS
     AGENTS --> MODEL
     AGENTS --> ECON
+
 ```
 
 ---
@@ -432,20 +460,59 @@ ohms-2.0/
 ### Appendix A — NOVAQ Performance Validation
 
 ```mermaid
+%%{init: {"theme": "default", "themeVariables": {
+  "fontSize": "16px",
+  "fontFamily": "Arial",
+  "primaryTextColor": "#000000",
+  "nodeTextColor": "#000000",
+  "edgeLabelBackground": "#ffffff",
+  "fontWeight": "bold"
+}}}%%
+
 graph LR
+
+    %% Subgraph: Compression Pipeline
     subgraph "Compression Pipeline"
-        A[Original Model] --> B[Distribution Normalization]
-        B --> C[Vector Codebooks] 
-        C --> D[Teacher-guided Refinement]
-        D --> E[NOVAQ Compressed]
+        A[Original Model]
+        B[Distribution Normalization]
+        C[Vector Codebooks]
+        D[Teacher-guided Refinement]
+        E[NOVAQ Compressed]
+
+        A --> B
+        B --> C
+        C --> D
+        D --> E
     end
-    
+
+    %% Subgraph: Quality Validation
     subgraph "Quality Validation"
-        E --> F[Perplexity Testing]
-        F --> G[Capability Benchmarks]
-        G --> H[Performance Metrics]
-        H --> I[Admin Approval]
+        F[Perplexity Testing]
+        G[Capability Benchmarks]
+        H[Performance Metrics]
+        I[Admin Approval]
+
+        E --> F
+        F --> G
+        G --> H
+        H --> I
     end
+
+    %% Style nodes - color-safe, borderless
+    style A fill:#fbd5d5,stroke:none
+    style B fill:#fce7b2,stroke:none
+    style C fill:#c4f0c5,stroke:none
+    style D fill:#d1c4e9,stroke:none
+    style E fill:#ffe082,stroke:none
+
+    style F fill:#b2dfdb,stroke:none
+    style G fill:#f8bbd0,stroke:none
+    style H fill:#c7eaff,stroke:none
+    style I fill:#dcedc8,stroke:none
+
+    %% Edge styling
+    linkStyle default stroke:red,stroke-width:3px
+
 ```
 
 ### Appendix B — Agent Coordination Protocol

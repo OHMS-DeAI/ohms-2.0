@@ -62,6 +62,7 @@ OHMS 2.0 employs a **sophisticated hybrid architecture** where computationally i
 ### High Level Architecture Diagram
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#f8f9fa', 'primaryTextColor': '#000000', 'primaryBorderColor': '#ffffff', 'lineColor': '#dc3545', 'lineWidth': '4px', 'sectionBkgColor': '#f8f9fa', 'altSectionBkgColor': '#e9ecef', 'secondaryColor': '#6c757d', 'tertiaryColor': '#495057', 'fontFamily': 'Arial', 'fontSize': '12px', 'fontWeight': 'bold'}}}%%
 graph TB
     subgraph "Admin Local Environment"
         ADMIN[Admin Terminal]

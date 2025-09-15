@@ -1,0 +1,31 @@
+# OHMS-AdaptQ Code Owners - NOVAQ Quantization Engine
+
+# Global owners - require approval from at least one
+* @ohms-core-team @ohms-adaptq-leads
+
+# NOVAQ quantization engine core
+/src/novaq/ @ohms-quant-team @ohms-adaptq-leads
+/src/verification/ @ohms-artifacts-team @ohms-adaptq-leads
+
+# Artifact generation and validation (NOVAQ specific)
+/src/manifest/ @ohms-artifacts-team @ohms-adaptq-leads
+/src/verification/ @ohms-artifacts-team @ohms-adaptq-leads
+
+# NOVAQ CLI and tooling
+/src/bin/ @ohms-tools-team @ohms-adaptq-leads
+
+# NOVAQ documentation
+*.md @ohms-docs-team @ohms-adaptq-leads
+/docs/ @ohms-docs-team @ohms-adaptq-leads
+
+# NOVAQ build configuration
+Cargo.toml @ohms-core-team @ohms-adaptq-leads
+Cargo.lock @ohms-core-team @ohms-adaptq-leads
+.github/ @ohms-devops-team @ohms-adaptq-leads
+
+# NOVAQ security (quantization integrity)
+SECURITY.md @ohms-security-team @ohms-adaptq-leads
+
+# NOVAQ schemas and model contracts
+/schemas/ @ohms-artifacts-team @ohms-adaptq-leads
+/config/ @ohms-adaptq-leads

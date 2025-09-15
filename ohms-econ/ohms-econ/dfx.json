@@ -1,0 +1,31 @@
+{
+  "canisters": {
+    "ohms_econ": {
+      "type": "rust",
+      "package": "ohms_econ",
+      "candid": "src/ohms_econ.did"
+    }
+  },
+  "defaults": {
+    "build": {
+      "packtool": "",
+      "args": ""
+    },
+    "canister_http": {
+      "enabled": false
+    },
+    "rust": {
+      "args": ""
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:4945",
+      "type": "ephemeral"
+    },
+    "ic": {
+      "type": "persistent"
+    }
+  },
+  "version": 1
+}

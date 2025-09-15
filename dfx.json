@@ -1,0 +1,66 @@
+{
+  "canisters": {
+    "ohms_agent": {
+      "type": "rust",
+      "package": "ohms_agent",
+      "candid": "ohms-agent/src/ohms_agent.did"
+    },
+    "ohms_coordinator": {
+      "type": "rust",
+      "package": "ohms_coordinator",
+      "candid": "ohms-coordinator/src/ohms_coordinator.did"
+    },
+    "ohms_econ": {
+      "type": "rust",
+      "package": "ohms_econ",
+      "candid": "ohms-econ/src/ohms_econ.did"
+    },
+    "ohms_model": {
+      "type": "rust",
+      "package": "ohms-model",
+      "candid": "ohms-model/src/ohms_model.did"
+    },
+    "ohms_ui": {
+      "type": "assets",
+      "source": [
+        "ohms-ui/dist"
+      ],
+      "frontend": {
+        "entrypoint": "ohms-ui/index.html"
+      },
+      "build": "cd ohms-ui && pnpm run build"
+    },
+    "ohms_website": {
+      "type": "assets",
+      "source": [
+        "ohms-website/out"
+      ],
+      "frontend": {
+        "entrypoint": "ohms-website/index.html"
+      },
+      "build": "cd ohms-website && npm run build"
+    }
+  },
+  "defaults": {
+    "build": {
+      "packtool": "",
+      "args": "-C link-arg=-Wl,--no-undefined-version"
+    },
+    "canister_http": {
+      "enabled": false
+    },
+    "rust": {
+      "args": ""
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:4943",
+      "type": "ephemeral"
+    },
+    "ic": {
+      "type": "persistent"
+    }
+  },
+  "version": 1
+}

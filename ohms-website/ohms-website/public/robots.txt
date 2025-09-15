@@ -1,0 +1,28 @@
+User-agent: *
+Allow: /
+Allow: /features
+Allow: /about
+Allow: /pricing
+Allow: /team
+
+# Block access to sensitive areas
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+Disallow: /_next/static/
+
+# Sitemap
+Sitemap: https://ohms-platform.com/sitemap.xml
+
+# Crawl delay for all bots
+Crawl-delay: 1
+
+# Special instructions for Google Bot
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 0.5
+
+# Special instructions for Bing Bot
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1

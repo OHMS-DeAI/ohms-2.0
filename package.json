@@ -1,0 +1,43 @@
+{
+  "name": "ohms-2.0",
+  "version": "1.0.0",
+  "description": "OHMS 2.0 - Autonomous Agent Platform with NOVAQ Compression",
+  "private": true,
+  "workspaces": [
+    "ohms-ui",
+    "ohms-website"
+  ],
+  "scripts": {
+    "setup": "./scripts/setup-monorepo.sh",
+    "install:all": "npm install --legacy-peer-deps && npm run install:ui && npm run install:website",
+    "install:ui": "cd ohms-ui && pnpm install",
+    "install:website": "cd ohms-website && npm install --legacy-peer-deps",
+    "build": "./scripts/build-all.sh",
+    "build:all": "npm run build:ui && npm run build:website",
+    "build:ui": "cd ohms-ui && pnpm run build",
+    "build:website": "cd ohms-website && npm run build",
+    "dev:ui": "cd ohms-ui && pnpm run dev",
+    "dev:website": "cd ohms-website && npm run dev",
+    "lint:ui": "cd ohms-ui && pnpm run lint",
+    "lint:website": "cd ohms-website && npm run lint",
+    "test:ui": "cd ohms-ui && pnpm run test",
+    "test:website": "cd ohms-website && npm run test",
+    "dfx:deploy:local": "./scripts/deploy-all.sh local",
+    "dfx:deploy:ic": "./scripts/deploy-all.sh ic",
+    "dfx:start": "dfx start --clean",
+    "dfx:stop": "dfx stop",
+    "canister:status": "dfx canister status --all",
+    "novaq:build": "cd ohms-adaptq && cargo build --release",
+    "novaq:install": "cd ohms-adaptq && cargo install --path .",
+    "clean": "cargo clean && rm -rf ohms-ui/dist ohms-website/out",
+    "clean:all": "npm run clean && rm -rf node_modules ohms-ui/node_modules ohms-website/node_modules"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

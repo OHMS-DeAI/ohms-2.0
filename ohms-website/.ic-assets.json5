@@ -1,0 +1,69 @@
+[
+  {
+    "match": "**/*",
+    "headers": {
+      "Cache-Control": "public, max-age=31536000, immutable"
+    },
+    "ignore": false
+  },
+  {
+    "match": "**/*.html",
+    "headers": {
+      "Cache-Control": "public, max-age=3600"
+    }
+  },
+  {
+    "match": "**/*.js",
+    "headers": {
+      "Cache-Control": "public, max-age=31536000, immutable"
+    }
+  },
+  {
+    "match": "**/*.css",
+    "headers": {
+      "Cache-Control": "public, max-age=31536000, immutable"
+    }
+  },
+  {
+    "match": "**/*.png",
+    "headers": {
+      "Cache-Control": "public, max-age=31536000, immutable"
+    }
+  },
+  {
+    "match": "**/*.jpg",
+    "headers": {
+      "Cache-Control": "public, max-age=31536000, immutable"
+    }
+  },
+  {
+    "match": "**/*.svg",
+    "headers": {
+      "Cache-Control": "public, max-age=31536000, immutable"
+    }
+  },
+  {
+    "match": "**/*.ico",
+    "headers": {
+      "Cache-Control": "public, max-age=31536000, immutable"
+    }
+  },
+  {
+    "match": "**/*.json",
+    "headers": {
+      "Cache-Control": "public, max-age=3600"
+    }
+  },
+  {
+    "match": "**/*.txt",
+    "headers": {
+      "Cache-Control": "public, max-age=3600"
+    }
+  },
+  {
+    "match": "**/*.xml",
+    "headers": {
+      "Cache-Control": "public, max-age=3600"
+    }
+  }
+]

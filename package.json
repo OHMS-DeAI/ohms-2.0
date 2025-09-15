@@ -4,6 +4,7 @@
   "description": "OHMS 2.0 - Autonomous Agent Platform with NOVAQ Compression",
   "private": true,
   "workspaces": [
+    "shared-types",
     "ohms-ui",
     "ohms-website"
   ],

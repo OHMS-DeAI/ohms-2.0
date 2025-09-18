@@ -14,6 +14,7 @@ import {
   getUserQuotaStatus,
   createAgentsFromInstructions,
 } from '../services/canisterService'
+import type { AgentSummary as CandidAgentSummary } from '../declarations/ohms_agent/ohms_agent.did'
 
 type AgentCreationRequest = {
   instruction: string
@@ -72,14 +73,16 @@ const UserAgentCreator = () => {
         throw new Error('Authentication required. Please connect your wallet.')
       }
       
-      const agentActor = createAgentActor(import.meta.env.VITE_OHMS_AGENT_CANISTER_ID, agent as any)
+      const agentActor = createAgentActor(agent as any)
       const coordinatorActor = createCoordinatorActor(agent as any)
       const econActor = createEconActor(agent as any)
       
       // Load user subscription and usage
+      const userPrincipalText = principal ?? 'anonymous'
+
       const [sub, agents, quota] = await Promise.all([
         econActor.get_user_subscription([]).catch(() => null),
-        listUserAgents(agent as any).catch(() => []),
+        listUserAgents(userPrincipalText, agent as any).catch(() => []),
         getUserQuotaStatus().catch(() => null),
       ])
 
@@ -101,7 +104,15 @@ const UserAgentCreator = () => {
         } as UserSubscription)
       }
 
-      setCreatedAgents((agents as AgentCreationResult[]) || [])
+      const mappedAgents = ((agents as CandidAgentSummary[]) || []).map((agent) => ({
+        agent_id: agent.agent_id,
+        status: typeof agent.status === 'string' ? agent.status : 'active',
+        capabilities: [],
+        estimated_completion: Number((agent.last_active ?? 0n) as bigint),
+        created_at: Number((agent.created_at ?? 0n) as bigint),
+      })) as AgentCreationResult[]
+
+      setCreatedAgents(mappedAgents)
 
       // Load real available models from canister
       try {
@@ -140,7 +151,7 @@ const UserAgentCreator = () => {
       const agent = await createAuthAgent()
       if (!agent) throw new Error('Authentication required')
       
-      const agentActor = createAgentActor(import.meta.env.VITE_OHMS_AGENT_CANISTER_ID, agent as any)
+      const agentActor = createAgentActor(agent as any)
       
       // Simulate agent creation steps
       const steps = [

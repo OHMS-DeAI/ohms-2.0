@@ -523,17 +523,22 @@ export class ApiClient {
   }
 
   // Agent Management
-  async listAgents(): Promise<ApiResponse<any[]>> {
-    return this.makeRequest(this.endpoints.ohms_agent, 'list_agents', [])
+  async listAgents(userId: string): Promise<ApiResponse<any[]>> {
+    return this.makeRequest(this.endpoints.ohms_agent, 'list_user_agents', [userId])
   }
 
   async getAgent(agentId: string): Promise<ApiResponse<any>> {
     return this.makeRequest(this.endpoints.ohms_agent, 'get_agent', [agentId])
   }
 
-  async createAgentFromInstructions(instructions: string, modelId?: string): Promise<ApiResponse<any>> {
-    const params = modelId ? [instructions, modelId] : [instructions]
-    return this.makeRequest(this.endpoints.ohms_agent, 'create_agent_from_instructions', params)
+  async createAgentFromInstructions(instructions: string, agentCount?: number): Promise<ApiResponse<any>> {
+    const request = {
+      instruction: instructions,
+      agent_count: agentCount ? [agentCount] : [],
+      capabilities: [],
+      priority: [],
+    };
+    return this.makeRequest(this.endpoints.ohms_agent, 'create_agent_from_instruction', [request])
   }
 
   // LLM Integration - Use ohms-agent canister for inference

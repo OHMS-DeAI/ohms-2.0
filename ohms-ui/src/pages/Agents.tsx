@@ -39,7 +39,7 @@ interface ChatMessage {
 }
 
 const Agents = () => {
-  const { isConnected, createAuthAgent } = useAgent()
+  const { isConnected, createAuthAgent, principal } = useAgent()
   const [agents, setAgents] = useState<Agent[]>([])
   const [swarmTopK, setSwarmTopK] = useState(3)
   const [swarmWindowMs, setSwarmWindowMs] = useState(100)
@@ -107,18 +107,19 @@ const Agents = () => {
       }
 
       console.log('Agents: Calling listUserAgents...')
-      const res = await listUserAgents(plugAgent)
+      const userPrincipal = principal ?? 'anonymous'
+      const res = await listUserAgents(userPrincipal, plugAgent)
       console.log('Agents: Raw response from listUserAgents:', res)
 
       const mappedAgents = (res as any[]).map((a: any) => ({
         agent_id: a.agent_id,
-        agent_principal: a.agent_principal,
-        capabilities: a.capabilities,
+        agent_principal: '',
+        capabilities: [],
         reputation: 0,
-        last_heartbeat: Number(a.last_seen ?? 0),
-        health_score: Number(a.health_score ?? 0),
-        model_id: a.model_id,
-        status: 'online',
+        last_heartbeat: Number((a.last_active ?? 0n) as bigint),
+        health_score: 0,
+        model_id: undefined,
+        status: 'online' as const,
       }))
 
       console.log('Agents: Mapped agents:', mappedAgents)

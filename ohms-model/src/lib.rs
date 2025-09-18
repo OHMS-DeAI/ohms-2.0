@@ -6,6 +6,7 @@ use ic_cdk::api::call::{call, CallResult};
 use ic_cdk::{api, caller, id, init, post_upgrade, pre_upgrade, query, storage, update};
 use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager, VirtualMemory},
+    storable::Bound,
     DefaultMemoryImpl, StableBTreeMap, Storable,
 };
 use ohms_adaptq::{CompressionConfig, CompressionResult, ModelFormat, NOVAQCompressor};
@@ -75,6 +76,8 @@ pub struct StorableModelInfo {
 }
 
 impl Storable for StorableModelInfo {
+    const BOUND: Bound = Bound::Unbounded;
+
     fn to_bytes(&self) -> Cow<[u8]> {
         Cow::Owned(candid::encode_one(self).unwrap())
     }
@@ -99,6 +102,8 @@ pub struct CompressionJob {
 }
 
 impl Storable for CompressionJob {
+    const BOUND: Bound = Bound::Unbounded;
+
     fn to_bytes(&self) -> Cow<[u8]> {
         Cow::Owned(candid::encode_one(self).unwrap())
     }
@@ -122,6 +127,8 @@ pub struct InferenceSession {
 }
 
 impl Storable for InferenceSession {
+    const BOUND: Bound = Bound::Unbounded;
+
     fn to_bytes(&self) -> Cow<[u8]> {
         Cow::Owned(candid::encode_one(self).unwrap())
     }
@@ -900,10 +907,11 @@ async fn process_compression_job(job_id: String, model_id: String) {
 
 async fn simulate_novaq_compression(model_id: &str) -> OHMSResult<CompressionResult> {
     // Get model data size
+    let key = model_id.to_string();
     let original_size = MODELS.with(|models| {
         models
             .borrow()
-            .get(model_id)
+            .get(&key)
             .map(|model| model.size_bytes)
             .unwrap_or(0)
     });
@@ -944,10 +952,11 @@ fn generate_session_id(model_id: &str, requester: Principal) -> String {
 }
 
 async fn validate_and_update_session(session_id: &str, requester: Principal) -> OHMSResult<()> {
+    let key = session_id.to_string();
     let mut session = INFERENCE_SESSIONS.with(|sessions| {
         sessions
             .borrow()
-            .get(session_id)
+            .get(&key)
             .ok_or_else(|| OHMSError::NotFound(format!("Session {} not found", session_id)))
     })?;
 
@@ -996,8 +1005,9 @@ async fn perform_model_inference(
 }
 
 async fn update_session_metrics(session_id: &str, processing_time: u64, tokens_processed: u32) {
+    let key = session_id.to_string();
     INFERENCE_SESSIONS.with(|sessions| {
-        if let Some(mut session) = sessions.borrow_mut().get(session_id) {
+        if let Some(mut session) = sessions.borrow_mut().get(&key) {
             session.request_count += 1;
             session.total_tokens_processed += tokens_processed as u64;
 
@@ -1008,16 +1018,15 @@ async fn update_session_metrics(session_id: &str, processing_time: u64, tokens_p
 
             session.last_activity = current_time_seconds();
 
-            sessions
-                .borrow_mut()
-                .insert(session_id.to_string(), session);
+            sessions.borrow_mut().insert(key.clone(), session);
         }
     });
 }
 
 async fn update_model_performance_metrics(model_id: &str, processing_time: u64) {
+    let key = model_id.to_string();
     MODELS.with(|models| {
-        if let Some(mut model_info) = models.borrow_mut().get(model_id) {
+        if let Some(mut model_info) = models.borrow_mut().get(&key) {
             let metrics = &mut model_info.performance_metrics;
 
             metrics.inference_count += 1;
@@ -1029,7 +1038,7 @@ async fn update_model_performance_metrics(model_id: &str, processing_time: u64) 
 
             metrics.last_updated = current_time_seconds();
 
-            models.borrow_mut().insert(model_id.to_string(), model_info);
+            models.borrow_mut().insert(key.clone(), model_info);
         }
     });
 }

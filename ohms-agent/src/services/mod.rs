@@ -2,8 +2,10 @@ use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 
 use ic_cdk::api::time;
-use rand::{RngCore, SeedableRng};
-use rand_chacha::ChaCha20Rng;
+use rand_chacha::{
+    rand_core::{RngCore, SeedableRng},
+    ChaCha20Rng,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::domain::{

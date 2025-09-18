@@ -14,12 +14,12 @@ serde = { workspace = true }
 serde_json = "1.0"
 serde_cbor = "0.11"
 sha2 = "0.10"
-rand = "0.8"
-rand_chacha = "0.3"
 base64 = "0.21"
 thiserror = "1.0"
 log = "0.4"
-getrandom = { version = "0.2", features = ["custom"] }
+ic-stable-structures = { workspace = true }
+ohms-shared = { workspace = true }
+hex = { workspace = true }
 
 # ICP payment processing dependencies removed for now due to version conflicts
 # ic-ledger-types would require ic-cdk 0.18+ but workspace uses 0.15

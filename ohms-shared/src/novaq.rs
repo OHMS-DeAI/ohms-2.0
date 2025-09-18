@@ -3,7 +3,7 @@
 
 use candid::{CandidType, Principal};
 use ic_cdk::api::call::{call, CallResult};
-use ohms_shared::{NOVAQCompressionResult, NOVAQConfig, OHMSError, OHMSResult};
+use crate::{NOVAQCompressionResult, NOVAQConfig, OHMSError, OHMSResult};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -71,14 +71,14 @@ impl NOVAQIntegration {
         model_id: String,
         config: NOVAQConfig,
     ) -> OHMSResult<String> {
-        let job_id = format!("novaq-{}-{}", model_id, ohms_shared::current_time_millis());
+        let job_id = format!("novaq-{}-{}", model_id, crate::current_time_millis());
 
         let job = CompressionJob {
             job_id: job_id.clone(),
             model_id,
             status: CompressionStatus::Queued,
             config,
-            created_at: ohms_shared::current_time_seconds(),
+            created_at: crate::current_time_seconds(),
             started_at: None,
             completed_at: None,
             result: None,
@@ -109,7 +109,7 @@ impl NOVAQIntegration {
             .ok_or_else(|| OHMSError::NotFound(format!("Compression job {} not found", job_id)))?;
 
         job.status = CompressionStatus::InProgress;
-        job.started_at = Some(ohms_shared::current_time_seconds());
+        job.started_at = Some(crate::current_time_seconds());
 
         let start_time = std::time::Instant::now();
 
@@ -180,7 +180,7 @@ impl NOVAQIntegration {
             original_hash: self.calculate_hash(&model_data),
             compressed_data,
             compression_metadata: metadata,
-            created_at: ohms_shared::current_time_seconds(),
+            created_at: crate::current_time_seconds(),
         };
 
         self.compressed_models
@@ -188,7 +188,7 @@ impl NOVAQIntegration {
 
         // Update job status
         job.status = CompressionStatus::Completed;
-        job.completed_at = Some(ohms_shared::current_time_seconds());
+        job.completed_at = Some(crate::current_time_seconds());
         job.result = Some(result.clone());
 
         Ok(result)
@@ -209,7 +209,7 @@ impl NOVAQIntegration {
             .ok_or_else(|| OHMSError::NotFound(format!("Compression job {} not found", job_id)))?;
 
         job.status = CompressionStatus::InProgress;
-        job.started_at = Some(ohms_shared::current_time_seconds());
+        job.started_at = Some(crate::current_time_seconds());
 
         // In a real WASM implementation, this might:
         // 1. Use a simplified NOVAQ implementation that works in WASM
@@ -249,14 +249,14 @@ impl NOVAQIntegration {
             original_hash: self.calculate_hash(&model_data),
             compressed_data,
             compression_metadata: metadata,
-            created_at: ohms_shared::current_time_seconds(),
+            created_at: crate::current_time_seconds(),
         };
 
         self.compressed_models
             .insert(job.model_id.clone(), compressed_model_record);
 
         job.status = CompressionStatus::Completed;
-        job.completed_at = Some(ohms_shared::current_time_seconds());
+        job.completed_at = Some(crate::current_time_seconds());
         job.result = Some(result.clone());
 
         Ok(result)
@@ -460,10 +460,16 @@ thread_local! {
     static NOVAQ_INTEGRATION: std::cell::RefCell<NOVAQIntegration> = std::cell::RefCell::new(NOVAQIntegration::new());
 }
 
-pub fn get_novaq_integration() -> std::cell::Ref<'static, NOVAQIntegration> {
-    NOVAQ_INTEGRATION.with(|integration| integration.borrow())
+pub fn with_novaq_integration<R>(f: impl FnOnce(&NOVAQIntegration) -> R) -> R {
+    NOVAQ_INTEGRATION.with(|integration| {
+        let borrowed = integration.borrow();
+        f(&borrowed)
+    })
 }
 
-pub fn get_novaq_integration_mut() -> std::cell::RefMut<'static, NOVAQIntegration> {
-    NOVAQ_INTEGRATION.with(|integration| integration.borrow_mut())
+pub fn with_novaq_integration_mut<R>(f: impl FnOnce(&mut NOVAQIntegration) -> R) -> R {
+    NOVAQ_INTEGRATION.with(|integration| {
+        let mut borrowed = integration.borrow_mut();
+        f(&mut borrowed)
+    })
 }

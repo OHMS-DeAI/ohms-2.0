@@ -5,9 +5,10 @@ use candid::{CandidType, Principal};
 use ic_cdk::api::management_canister::main::{
     canister_status, CanisterIdRecord, CanisterStatusResponse,
 };
-use ic_stable_structures::{memory::Memory, DefaultMemoryImpl, StableBTreeMap};
-use ohms_shared::{OHMSError, OHMSResult};
+use ic_stable_structures::{memory::Memory, storable::Bound, DefaultMemoryImpl, StableBTreeMap, Storable};
+use crate::{OHMSError, OHMSResult};
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 type MemoryId = u8;
@@ -24,7 +25,19 @@ pub struct CanisterInfo {
     pub health_score: f32,
 }
 
-#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
+impl Storable for CanisterInfo {
+    const BOUND: Bound = Bound::Unbounded;
+
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        std::borrow::Cow::Owned(candid::encode_one(self).unwrap())
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        candid::decode_one(&bytes).unwrap()
+    }
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum CanisterType {
     ModelRepository,
     AgentFactory,
@@ -69,7 +82,7 @@ impl CanisterRegistry {
     }
 
     pub fn get_canister(&self, canister_id: &str) -> Option<CanisterInfo> {
-        self.canisters.get(canister_id)
+        self.canisters.get(&canister_id.to_string())
     }
 
     pub fn get_canister_by_type(&self, canister_type: &CanisterType) -> Option<Principal> {
@@ -94,10 +107,10 @@ impl CanisterRegistry {
         status: CanisterStatus,
         health_score: f32,
     ) -> OHMSResult<()> {
-        if let Some(mut info) = self.canisters.get(canister_id) {
+        if let Some(mut info) = self.canisters.get(&canister_id.to_string()) {
             info.status = status;
             info.health_score = health_score;
-            info.last_health_check = ohms_shared::current_time_seconds();
+            info.last_health_check = crate::current_time_seconds();
             self.canisters.insert(canister_id.to_string(), info);
             Ok(())
         } else {
@@ -175,7 +188,7 @@ impl CanisterRegistry {
             .map_err(|_| OHMSError::NotFound("Econ canister ID not found".to_string()))?;
 
         // Register all known canisters
-        let current_time = ohms_shared::current_time_seconds();
+        let current_time = crate::current_time_seconds();
 
         self.register_canister(CanisterInfo {
             canister_id: Principal::from_text(&model_id)
@@ -310,17 +323,17 @@ pub fn init_canister_registry() -> OHMSResult<()> {
 }
 
 pub fn get_canister_registry() -> OHMSResult<std::cell::Ref<'static, CanisterRegistry>> {
-    CANISTER_REGISTRY.with(|registry| {
+    Ok(CANISTER_REGISTRY.with(|registry| {
         std::cell::Ref::map(registry.borrow(), |opt| {
             opt.as_ref().expect("Canister registry not initialized")
         })
-    })
+    }))
 }
 
 pub fn get_canister_registry_mut() -> OHMSResult<std::cell::RefMut<'static, CanisterRegistry>> {
-    CANISTER_REGISTRY.with(|registry| {
+    Ok(CANISTER_REGISTRY.with(|registry| {
         std::cell::RefMut::map(registry.borrow_mut(), |opt| {
             opt.as_mut().expect("Canister registry not initialized")
         })
-    })
+    }))
 }

@@ -1,5 +1,15 @@
-import { Actor, HttpAgent } from '@dfinity/agent';
+import { Actor, ActorSubclass, HttpAgent } from '@dfinity/agent';
 import { HOST as RESOLVED_HOST, NETWORK, getCanisterIdsFromEnv } from '../config/network'
+import { idlFactory as agentIdlFactory } from '../declarations/ohms_agent'
+import type {
+  _SERVICE as AgentCanister,
+  AgentCreationRequest as CandidAgentCreationRequest,
+  InferenceRequest as CandidInferenceRequest,
+  Result_AgentCreation as CandidResultAgentCreation,
+  Result_Inference as CandidResultInference,
+  AgentSummary as CandidAgentSummary,
+  Result_Summaries as CandidResultSummaries
+} from '../declarations/ohms_agent/ohms_agent.did'
 
 // Centralized host/network resolution
 export const host = RESOLVED_HOST;
@@ -89,78 +99,6 @@ const modelCanisterIdl = ({ IDL }: any) => {
     add_authorized_uploader: IDL.Func([IDL.Text], [Result], []),
     deprecate_model: IDL.Func([IDL.Text], [Result], []),
     submit_model: IDL.Func([ModelUpload], [Result], []),
-  });
-};
-
-const agentCanisterIdl = ({ IDL }: any) => {
-  const DecodeParams = IDL.Record({
-    max_tokens: IDL.Opt(IDL.Nat32),
-    temperature: IDL.Opt(IDL.Float32),
-    top_p: IDL.Opt(IDL.Float32),
-    top_k: IDL.Opt(IDL.Nat32),
-    repetition_penalty: IDL.Opt(IDL.Float32),
-  });
-
-  const InferenceRequest = IDL.Record({
-    seed: IDL.Nat64,
-    prompt: IDL.Text,
-    decode_params: DecodeParams,
-    msg_id: IDL.Text,
-  });
-
-  const InferenceResponse = IDL.Record({
-    tokens: IDL.Vec(IDL.Text),
-    generated_text: IDL.Text,
-    inference_time_ms: IDL.Nat64,
-    cache_hits: IDL.Nat32,
-    cache_misses: IDL.Nat32,
-  });
-
-  const AgentConfig = IDL.Record({
-    warm_set_target: IDL.Float32,
-    prefetch_depth: IDL.Nat32,
-    max_tokens: IDL.Nat32,
-    concurrency_limit: IDL.Nat32,
-    ttl_seconds: IDL.Nat64,
-    model_repo_canister_id: IDL.Text,
-  });
-
-  const AgentHealth = IDL.Record({
-    model_bound: IDL.Bool,
-    cache_hit_rate: IDL.Float32,
-    warm_set_utilization: IDL.Float32,
-    queue_depth: IDL.Nat32,
-    last_inference_timestamp: IDL.Nat64,
-  });
-
-  const ResultVoid = IDL.Variant({ Ok: IDL.Null, Err: IDL.Text });
-  const ResultInference = IDL.Variant({ Ok: InferenceResponse, Err: IDL.Text });
-  const ResultConfig = IDL.Variant({ Ok: AgentConfig, Err: IDL.Text });
-  
-  // Agent creation types
-  const AgentCreationRequest = IDL.Record({
-    instruction: IDL.Text,
-    agent_count: IDL.Opt(IDL.Nat32),
-    capabilities: IDL.Opt(IDL.Vec(IDL.Text)),
-    priority: IDL.Opt(IDL.Text),
-  });
-  
-  const AgentCreationResult = IDL.Record({
-    agent_id: IDL.Text,
-    status: IDL.Text,
-    capabilities: IDL.Vec(IDL.Text),
-    estimated_completion: IDL.Opt(IDL.Nat64),
-  });
-  
-  const ResultAgentCreation = IDL.Variant({ Ok: AgentCreationResult, Err: IDL.Text });
-
-  return IDL.Service({
-    health: IDL.Func([], [AgentHealth], ['query']),
-    bind_model: IDL.Func([IDL.Text], [ResultVoid], []),
-    infer: IDL.Func([InferenceRequest], [ResultInference], []),
-    set_config: IDL.Func([AgentConfig], [ResultVoid], []),
-    get_config: IDL.Func([], [ResultConfig], ['query']),
-    create_agent_from_instruction: IDL.Func([AgentCreationRequest], [ResultAgentCreation], []),
   });
 };
 
@@ -492,7 +430,7 @@ export const modelCanister = Actor.createActor(modelCanisterIdl, {
   canisterId: OHMS_MODEL_CANISTER_ID,
 });
 
-export const agentCanister = Actor.createActor(agentCanisterIdl, {
+export const agentCanister: ActorSubclass<AgentCanister> = Actor.createActor(agentIdlFactory, {
   agent,
   canisterId: OHMS_AGENT_CANISTER_ID,
 });
@@ -562,55 +500,38 @@ export const sendMessageToAgent = async (
   message: string, 
   capabilities?: string[]
 ): Promise<any> => {
-  // Removed console log
-  
   try {
-    // Get agent details first
-    const agentResult = await coordinatorCanister.get_agent(agentId);
-    
-    if ('Err' in agentResult) {
-      throw new Error(`Agent not found: ${agentResult.Err}`);
-    }
-    
-    const agent = agentResult.Ok;
-    // Removed console log
-    
-    // Create agent actor to communicate directly
     const agentActor = createAgentActor();
-    
-    // Prepare inference request
-    const inferenceRequest = {
-      request_id: `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+
+    const decodeParams = {
+      max_tokens: [512],
+      temperature: [0.7],
+      top_p: [0.9],
+      top_k: [],
+      repetition_penalty: [1.05],
+    } as CandidInferenceRequest['decode_params'];
+
+    const inferenceRequest: CandidInferenceRequest = {
+      seed: BigInt(Date.now()),
       prompt: message,
-      max_tokens: 500n,
-      temperature: 0.7,
-      model_config: {
-        model_id: agent.model_id || 'default',
-        version: '1.0.0',
-      },
-      capabilities: capabilities || [],
+      decode_params: decodeParams,
+      msg_id: `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`,
     };
-    
-    // Removed console log
-    
-    // Send inference request
-    const result = await agentActor.infer(inferenceRequest);
-    
-    if ('Ok' in result) {
-      // Removed console log
-      return {
-        success: true,
-        agentId,
-        response: result.Ok.response_text || result.Ok.content || 'Response received',
-        metadata: result.Ok
-      };
-    } else {
-      // Removed console log
+
+    const result: CandidResultInference = await agentActor.infer(inferenceRequest);
+
+    if ('Err' in result) {
       throw new Error(`Agent inference failed: ${result.Err}`);
     }
-    
+
+    const responsePayload = result.Ok;
+    return {
+      success: true,
+      agentId,
+      response: responsePayload.generated_text,
+      metadata: responsePayload,
+    };
   } catch (error) {
-    // Removed console log
     throw error;
   }
 };
@@ -620,34 +541,24 @@ export const bindAgentAndWireRoutes = async (
   agentId: string,
   modelId: string
 ): Promise<any> => {
-  // Removed console log
-  
   try {
-    // Create agent actor
     const agentActor = createAgentActor();
-    
-    // Bind the model to the agent
+
     const bindResult = await agentActor.bind_model(modelId);
-    
+
     if ('Err' in bindResult) {
       throw new Error(`Failed to bind model: ${bindResult.Err}`);
     }
-    
-    // Removed console log
-    
-    // Update agent status to active
-    await updateAgentStatus(agentId, 'active');
-    
+
     return {
       success: true,
       agentId,
       modelId,
-      status: 'active',
-      message: 'Agent bound and routes wired successfully'
+      status: 'ready',
+      message: 'Agent bound successfully',
+      canisterId: OHMS_AGENT_CANISTER_ID,
     };
-    
   } catch (error) {
-    // Removed console log
     throw error;
   }
 };
@@ -719,11 +630,34 @@ export const executeCoordinatorWorkflow = async (
 };
 
 // Helpers
-export const createAgentActor = (agentOverride?: HttpAgent, canisterId?: string) =>
-  Actor.createActor(agentCanisterIdl, {
-    agent: agentOverride || agent,
-    canisterId: canisterId || OHMS_AGENT_CANISTER_ID
+export const createAgentActor = (
+  param1?: HttpAgent | string,
+  param2?: HttpAgent | string
+): ActorSubclass<AgentCanister> => {
+  let resolvedAgent: HttpAgent = agent;
+  let resolvedCanister = OHMS_AGENT_CANISTER_ID;
+
+  if (param1) {
+    if (typeof param1 === 'string') {
+      resolvedCanister = param1;
+    } else {
+      resolvedAgent = param1;
+    }
+  }
+
+  if (param2) {
+    if (typeof param2 === 'string') {
+      resolvedCanister = param2;
+    } else {
+      resolvedAgent = param2;
+    }
+  }
+
+  return Actor.createActor(agentIdlFactory, {
+    agent: resolvedAgent,
+    canisterId: resolvedCanister,
   });
+};
 
 export const createCoordinatorActor = (agentOverride?: HttpAgent, canisterId?: string) =>
   Actor.createActor(coordinatorCanisterIdl, {
@@ -737,16 +671,13 @@ export const createModelActor = (agentOverride?: HttpAgent, canisterId?: string)
     canisterId: canisterId || OHMS_MODEL_CANISTER_ID,
   });
 
-export const listAgents = async (agentOverride?: HttpAgent): Promise<any[]> => {
-  const coordActor = agentOverride ? createCoordinatorActor(agentOverride) : coordinatorCanister;
-  const res = await coordActor.list_agents() as { Ok?: any[]; Err?: string };
-  // Handle Result type - check if Ok or Err
-  if ('Ok' in res && res.Ok) {
-    return res.Ok;
-  } else {
-    // Removed console log
-    throw new Error(res.Err || 'Unknown error');
+export const listAgents = async (userId: string = 'anonymous', agentOverride?: HttpAgent): Promise<CandidAgentSummary[]> => {
+  const actor = agentOverride ? createAgentActor(agentOverride) : agentCanister;
+  const res: CandidResultSummaries = await actor.list_user_agents(userId);
+  if ('Err' in res) {
+    throw new Error(res.Err || 'Failed to list agents');
   }
+  return res.Ok;
 };
 
 // OHMS 2.0 Agent Spawning Functions
@@ -756,7 +687,16 @@ export const createAgentsFromInstructions = async (
   capabilities: string[] = [], 
   priority: string = 'normal'
 ): Promise<any> => {
-  return coordinatorCanister.create_agents_from_instructions(instructions, agentCount ? [agentCount] : [], capabilities, priority);
+  const actor = createAgentActor();
+  const request: CandidAgentCreationRequest = {
+    instruction: instructions,
+    agent_count: agentCount ? [agentCount] : [],
+    capabilities: capabilities.length ? [capabilities] : [],
+    priority: priority ? [priority] : [],
+  };
+
+  const result: CandidResultAgentCreation = await actor.create_agent_from_instruction(request);
+  return result;
 };
 
 export const getAgentCreationStatus = async (requestId: string): Promise<any> => {
@@ -767,15 +707,8 @@ export const getUserQuotaStatus = async (): Promise<any> => {
   return coordinatorCanister.get_user_quota_status();
 };
 
-export const listUserAgents = async (agentOverride?: HttpAgent): Promise<any[]> => {
-  const coordActor = agentOverride ? createCoordinatorActor(agentOverride) : coordinatorCanister;
-  const res = await coordActor.list_user_agents() as { Ok?: any[]; Err?: string };
-  if ('Ok' in res && res.Ok) {
-    return res.Ok;
-  } else {
-    // Removed console log
-    throw new Error(res.Err || 'Unknown error');
-  }
+export const listUserAgents = async (userId: string, agentOverride?: HttpAgent): Promise<CandidAgentSummary[]> => {
+  return listAgents(userId, agentOverride);
 };
 
 export const listInstructionRequests = async (): Promise<any[]> => {

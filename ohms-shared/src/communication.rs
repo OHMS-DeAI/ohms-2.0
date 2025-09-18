@@ -3,7 +3,7 @@
 
 use candid::{CandidType, Principal};
 use ic_cdk::api::call::{call, CallResult};
-use ohms_shared::{
+use crate::{
     AgentInfo, ComponentHealth, IntercanisterMessage, IntercanisterResponse, JobCost, ModelInfo,
     OHMSError, OHMSResult, SystemHealth,
 };
@@ -323,7 +323,7 @@ impl OHMSClient {
             agent: agent_health.unwrap_or(ComponentHealth::Unknown),
             coordinator: coordinator_health.unwrap_or(ComponentHealth::Unknown),
             econ: econ_health.unwrap_or(ComponentHealth::Unknown),
-            timestamp: ohms_shared::current_time_seconds(),
+            timestamp: crate::current_time_seconds(),
         }
     }
 
@@ -383,14 +383,14 @@ impl OHMSClient {
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
 pub struct AgentSpec {
     pub agent_id: String,
-    pub agent_type: ohms_shared::AgentType,
+    pub agent_type: crate::AgentType,
     pub model_id: String,
     pub capabilities: Vec<String>,
-    pub complexity: ohms_shared::ComplexityLevel,
-    pub urgency: ohms_shared::UrgencyLevel,
+    pub complexity: crate::ComplexityLevel,
+    pub urgency: crate::UrgencyLevel,
     pub estimated_tokens: Option<u32>,
     pub estimated_compute_cycles: Option<u64>,
-    pub priority: ohms_shared::JobPriority,
+    pub priority: crate::JobPriority,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
@@ -418,7 +418,7 @@ pub struct JobSpec {
     pub model_id: String,
     pub estimated_tokens: u32,
     pub estimated_compute_cycles: u64,
-    pub priority: ohms_shared::JobPriority,
+    pub priority: crate::JobPriority,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
@@ -426,8 +426,8 @@ pub struct CoordinationRequest {
     pub request_id: String,
     pub user_principal: String,
     pub instructions: String,
-    pub coordination_type: ohms_shared::CoordinationType,
-    pub agent_requirements: Vec<ohms_shared::AgentRequirement>,
+    pub coordination_type: crate::CoordinationType,
+    pub agent_requirements: Vec<crate::AgentRequirement>,
     pub created_at: u64,
 }
 

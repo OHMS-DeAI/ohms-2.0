@@ -2,11 +2,11 @@
 // This module contains type definitions shared across all OHMS components
 
 pub mod communication;
-pub mod novaq;
 pub mod registry;
 
-use candid::{CandidType, Deserialize};
+use candid::{CandidType, Deserialize, Principal};
 use serde::Serialize;
+use std::collections::HashMap;
 
 // ==============================================================================
 // Core System Types
@@ -22,11 +22,13 @@ pub enum ComponentHealth {
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
 pub struct SystemHealth {
-    pub model: ComponentHealth,
-    pub agent: ComponentHealth,
-    pub coordinator: ComponentHealth,
-    pub econ: ComponentHealth,
-    pub timestamp: u64,
+    pub canister_id: Principal,
+    pub status: ComponentHealth,
+    pub uptime_seconds: u64,
+    pub memory_usage_mb: f32,
+    pub last_update: u64,
+    pub version: String,
+    pub metrics: HashMap<String, String>,
 }
 
 // ==============================================================================
@@ -34,9 +36,10 @@ pub struct SystemHealth {
 // ==============================================================================
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub enum CompressionType {
+pub enum QuantizationFormat {
     NOVAQ,
-    Uncompressed,
+    GGUF,
+    Custom(String),
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -51,7 +54,7 @@ pub struct ModelInfo {
     pub model_id: String,
     pub version: String,
     pub state: ModelState,
-    pub compression_type: CompressionType,
+    pub quantization_format: QuantizationFormat,
     pub compression_ratio: Option<f32>,
     pub accuracy_retention: Option<f32>,
     pub size_bytes: u64,
@@ -179,32 +182,40 @@ pub struct AgentRequirement {
 }
 
 // ==============================================================================
-// NOVAQ Integration Types
+// Quantized Artifact Types
 // ==============================================================================
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
-pub struct NOVAQConfig {
-    pub target_bits: f32,
-    pub num_subspaces: u32,
-    pub codebook_size_l1: u32,
-    pub codebook_size_l2: u32,
-    pub outlier_threshold: f32,
-    pub teacher_model_path: Option<String>,
-    pub refinement_iterations: u32,
-    pub kl_weight: f32,
-    pub cosine_weight: f32,
-    pub learning_rate: f32,
-    pub seed: u64,
+pub struct QuantizedArtifactMetadata {
+    pub format: QuantizationFormat,
+    pub artifact_checksum: String,
+    pub compression_ratio: f32,
+    pub accuracy_retention: f32,
+    pub bits_per_weight: Option<f32>,
+    pub notes: Option<String>,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
-pub struct NOVAQCompressionResult {
-    pub original_size_mb: f32,
-    pub compressed_size_mb: f32,
-    pub compression_ratio: f32,
-    pub accuracy_retention: f32,
-    pub compression_time_seconds: f32,
-    pub model_hash: String,
+pub struct ArtifactChunkInfo {
+    pub chunk_id: String,
+    pub offset: u64,
+    pub size_bytes: u64,
+    pub sha256: String,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct ModelManifest {
+    pub model_id: String,
+    pub version: String,
+    pub state: ModelState,
+    pub uploaded_at: u64,
+    pub activated_at: Option<u64>,
+    pub total_size_bytes: u64,
+    pub chunk_count: u32,
+    pub checksum: String,
+    pub quantization: QuantizedArtifactMetadata,
+    pub metadata: HashMap<String, String>,
+    pub chunks: Vec<ArtifactChunkInfo>,
 }
 
 // ==============================================================================
@@ -237,10 +248,13 @@ pub struct IntercanisterResponse {
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum OHMSError {
     InvalidInput(String),
+    InvalidState(String),
+    AlreadyExists(String),
     NotFound(String),
     Unauthorized(String),
     InternalError(String),
     NetworkError(String),
+    CommunicationFailed(String),
     QuotaExceeded(String),
     InsufficientFunds(String),
     ModelNotReady(String),
@@ -257,10 +271,15 @@ impl std::fmt::Display for OHMSError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OHMSError::InvalidInput(msg) => write!(f, "Invalid input: {}", msg),
+            OHMSError::InvalidState(msg) => write!(f, "Invalid state: {}", msg),
+            OHMSError::AlreadyExists(msg) => write!(f, "Already exists: {}", msg),
             OHMSError::NotFound(msg) => write!(f, "Not found: {}", msg),
             OHMSError::Unauthorized(msg) => write!(f, "Unauthorized: {}", msg),
             OHMSError::InternalError(msg) => write!(f, "Internal error: {}", msg),
             OHMSError::NetworkError(msg) => write!(f, "Network error: {}", msg),
+            OHMSError::CommunicationFailed(msg) => {
+                write!(f, "Communication failed: {}", msg)
+            }
             OHMSError::QuotaExceeded(msg) => write!(f, "Quota exceeded: {}", msg),
             OHMSError::InsufficientFunds(msg) => write!(f, "Insufficient funds: {}", msg),
             OHMSError::ModelNotReady(msg) => write!(f, "Model not ready: {}", msg),
@@ -290,5 +309,4 @@ pub fn current_time_seconds() -> u64 {
 
 // Re-export all public types and functions
 pub use communication::*;
-pub use novaq::*;
 pub use registry::*;

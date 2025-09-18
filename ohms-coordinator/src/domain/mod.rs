@@ -1,4 +1,5 @@
 use candid::CandidType;
+use ohms_shared::ModelManifest;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -66,23 +67,19 @@ pub enum AgentCreationStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
-pub struct CoordinatorHealth {
-    pub total_agents: u32,
-    pub active_agents: u32,
-    pub total_agent_creations: u32,
-    pub active_instructions: u32,
-    pub total_routes_processed: u64,
-    pub average_routing_time_ms: f64,
-    pub dedup_cache_size: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct RoutingStats {
     pub agent_id: String,
     pub total_requests: u64,
     pub success_rate: f32,
     pub average_response_time_ms: f64,
     pub capability_scores: HashMap<String, f32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
+pub struct RegisteredModel {
+    pub manifest: ModelManifest,
+    pub registered_at: u64,
+    pub last_updated: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

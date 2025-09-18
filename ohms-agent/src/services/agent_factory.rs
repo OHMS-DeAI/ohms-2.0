@@ -19,10 +19,11 @@ impl AgentFactory {
             return Err(AgentError::ModelNotBound.to_string());
         }
 
+        let binding_state = with_state(|state| state.binding.clone())
+            .ok_or_else(|| AgentError::ModelNotBound.to_string())?;
+        let binding_model_id = binding_state.model_id.clone();
+        let bound_manifest = binding_state.manifest.clone();
         let created_at = time();
-        let binding_model_id =
-            with_state(|state| state.binding.as_ref().map(|b| b.model_id.clone()))
-                .ok_or_else(|| AgentError::ModelNotBound.to_string())?;
         let requires_coordination = analysis.coordination_requirements.requires_coordination;
         let agent = with_state_mut(|state| {
             let agent_id = generate_id(state, "agent");
@@ -32,6 +33,7 @@ impl AgentFactory {
                 agent_type: analysis.agent_configuration.agent_type.clone(),
                 status: AgentStatus::Ready,
                 model_id: Some(binding_model_id.clone()),
+                model_manifest: Some(bound_manifest.clone()),
                 capabilities: analysis
                     .extracted_capabilities
                     .iter()

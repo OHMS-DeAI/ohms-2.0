@@ -4,25 +4,27 @@
 export type ComponentHealth = 'Healthy' | 'Degraded' | 'Unhealthy' | 'Unknown';
 
 export interface SystemHealth {
-  model: ComponentHealth;
-  agent: ComponentHealth;
-  coordinator: ComponentHealth;
-  econ: ComponentHealth;
-  timestamp: bigint;
+  canister_id: string;
+  status: ComponentHealth;
+  uptime_seconds: bigint;
+  memory_usage_mb: number;
+  last_update: bigint;
+  version: string;
+  metrics: Record<string, string>;
 }
 
 // ==============================================================================
 // Model Repository Types
 // ==============================================================================
 
-export type CompressionType = 'NOVAQ' | 'Uncompressed';
+export type QuantizationFormat = 'NOVAQ' | 'GGUF' | { Custom: string };
 export type ModelState = 'Pending' | 'Active' | 'Deprecated';
 
 export interface ModelInfo {
   model_id: string;
   version: string;
   state: ModelState;
-  compression_type: CompressionType;
+  quantization_format: QuantizationFormat;
   compression_ratio?: number;
   accuracy_retention?: number;
   size_bytes: bigint;
@@ -135,6 +137,40 @@ export interface CoordinationStatus {
 }
 
 // ==============================================================================
+// Quantized Artifact Types
+// ==============================================================================
+
+export interface QuantizedArtifactMetadata {
+  format: QuantizationFormat;
+  artifact_checksum: string;
+  compression_ratio: number;
+  accuracy_retention: number;
+  bits_per_weight?: number;
+  notes?: string;
+}
+
+export interface ArtifactChunkInfo {
+  chunk_id: string;
+  offset: bigint;
+  size_bytes: bigint;
+  sha256: string;
+}
+
+export interface ModelManifest {
+  model_id: string;
+  version: string;
+  state: ModelState;
+  uploaded_at: bigint;
+  activated_at?: bigint;
+  total_size_bytes: bigint;
+  chunk_count: number;
+  checksum: string;
+  quantization: QuantizedArtifactMetadata;
+  metadata: Record<string, string>;
+  chunks: ArtifactChunkInfo[];
+}
+
+// ==============================================================================
 // NOVAQ Integration Types
 // ==============================================================================
 
@@ -204,7 +240,10 @@ export type OHMSError =
   | { Unauthorized: string }
   | { InternalError: string }
   | { NetworkError: string }
+  | { CommunicationFailed: string }
   | { QuotaExceeded: string }
+  | { AlreadyExists: string }
+  | { InvalidState: string }
   | { InsufficientFunds: string }
   | { ModelNotReady: string }
   | { CompressionFailed: string };
@@ -322,7 +361,10 @@ export const extractError = (error: OHMSError): string => {
   if ('Unauthorized' in error) return `Unauthorized: ${error.Unauthorized}`;
   if ('InternalError' in error) return `Internal error: ${error.InternalError}`;
   if ('NetworkError' in error) return `Network error: ${error.NetworkError}`;
+  if ('CommunicationFailed' in error) return `Communication failed: ${error.CommunicationFailed}`;
   if ('QuotaExceeded' in error) return `Quota exceeded: ${error.QuotaExceeded}`;
+  if ('AlreadyExists' in error) return `Already exists: ${error.AlreadyExists}`;
+  if ('InvalidState' in error) return `Invalid state: ${error.InvalidState}`;
   if ('InsufficientFunds' in error) return `Insufficient funds: ${error.InsufficientFunds}`;
   if ('ModelNotReady' in error) return `Model not ready: ${error.ModelNotReady}`;
   if ('CompressionFailed' in error) return `Compression failed: ${error.CompressionFailed}`;

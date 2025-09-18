@@ -3,14 +3,15 @@
 
 use candid::{candid_method, CandidType, Principal};
 use ic_cdk::api::call::{call, CallResult};
-use ic_cdk::{api, caller, id, init, post_upgrade, pre_upgrade, query, storage, update};
+use ic_cdk::{api, caller, id, init, post_upgrade, pre_upgrade, query, update};
 use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager, VirtualMemory},
+    storable::Bound,
     DefaultMemoryImpl, StableBTreeMap, Storable,
 };
 use ohms_shared::{
-    current_time_millis, current_time_seconds, CanisterInfo, ComponentHealth, OHMSError,
-    OHMSResult, SystemHealth,
+    current_time_millis, current_time_seconds, CanisterInfo, CanisterStatus, CanisterType,
+    ComponentHealth, OHMSError, OHMSResult, SystemHealth,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -78,6 +79,8 @@ pub struct TokenAccount {
 }
 
 impl Storable for TokenAccount {
+    const BOUND: Bound = Bound::Unbounded;
+
     fn to_bytes(&self) -> Cow<[u8]> {
         Cow::Owned(candid::encode_one(self).unwrap())
     }
@@ -103,6 +106,8 @@ pub struct StakingPosition {
 }
 
 impl Storable for StakingPosition {
+    const BOUND: Bound = Bound::Unbounded;
+
     fn to_bytes(&self) -> Cow<[u8]> {
         Cow::Owned(candid::encode_one(self).unwrap())
     }
@@ -127,6 +132,8 @@ pub struct RewardPool {
 }
 
 impl Storable for RewardPool {
+    const BOUND: Bound = Bound::Unbounded;
+
     fn to_bytes(&self) -> Cow<[u8]> {
         Cow::Owned(candid::encode_one(self).unwrap())
     }
@@ -151,6 +158,8 @@ pub struct Transaction {
 }
 
 impl Storable for Transaction {
+    const BOUND: Bound = Bound::Unbounded;
+
     fn to_bytes(&self) -> Cow<[u8]> {
         Cow::Owned(candid::encode_one(self).unwrap())
     }
@@ -180,6 +189,8 @@ pub struct GovernanceProposal {
 }
 
 impl Storable for GovernanceProposal {
+    const BOUND: Bound = Bound::Unbounded;
+
     fn to_bytes(&self) -> Cow<[u8]> {
         Cow::Owned(candid::encode_one(self).unwrap())
     }
@@ -622,7 +633,7 @@ pub async fn stake_tokens(request: StakeRequest) -> OHMSResult<String> {
     // Record staking transaction
     let tx_id = generate_transaction_id(&caller_id, &id(), request.amount);
     let transaction = Transaction {
-        tx_id,
+        tx_id: tx_id.clone(),
         tx_type: TransactionType::Stake,
         from: caller_id,
         to: id(),
@@ -708,7 +719,7 @@ pub async fn unstake_tokens(position_id: String) -> OHMSResult<()> {
     // Record unstaking transaction
     let tx_id = generate_transaction_id(&id(), &caller_id, position.amount + final_rewards);
     let transaction = Transaction {
-        tx_id,
+        tx_id: tx_id.clone(),
         tx_type: TransactionType::Unstake,
         from: id(),
         to: caller_id,
@@ -727,7 +738,7 @@ pub async fn unstake_tokens(position_id: String) -> OHMSResult<()> {
     };
 
     TRANSACTIONS.with(|txs| {
-        txs.borrow_mut().insert(tx_id, transaction);
+        txs.borrow_mut().insert(tx_id.clone(), transaction);
     });
 
     // Mint rewards if needed
@@ -1126,24 +1137,15 @@ async fn register_with_coordinator() {
     let coordinator_id = get_coordinator_canister_id();
 
     if let Some(coordinator) = coordinator_id {
+        let now = current_time_seconds();
         let canister_info = CanisterInfo {
             canister_id: id(),
-            canister_type: "econ".to_string(),
-            name: "OHMS Economic Canister".to_string(),
+            canister_type: CanisterType::Economics,
             version: env!("CARGO_PKG_VERSION").to_string(),
-            health: ComponentHealth::Healthy,
-            metadata: {
-                let mut metadata = HashMap::new();
-                metadata.insert(
-                    "total_supply".to_string(),
-                    get_protocol_config().total_supply.to_string(),
-                );
-                metadata.insert(
-                    "circulating_supply".to_string(),
-                    get_protocol_config().circulating_supply.to_string(),
-                );
-                metadata
-            },
+            status: CanisterStatus::Healthy,
+            registered_at: now,
+            last_health_check: now,
+            health_score: 1.0,
         };
 
         let result: CallResult<(OHMSResult<()>,)> =
@@ -1320,9 +1322,11 @@ async fn distribute_usage_fees(fee_amount: u64, _model_id: &str) {
 
     // Add to staking rewards pool
     REWARD_POOLS.with(|pools| {
-        if let Some(mut pool) = pools.borrow_mut().get("Standard_pool") {
+        let key = "Standard_pool".to_string();
+        let mut store = pools.borrow_mut();
+        if let Some(mut pool) = store.get(&key) {
             pool.total_rewards += staker_share;
-            pools.borrow_mut().insert("Standard_pool".to_string(), pool);
+            store.insert(key, pool);
         }
     });
 
@@ -1350,10 +1354,11 @@ fn get_total_voting_power() -> u64 {
 }
 
 async fn check_and_finalize_proposal(proposal_id: &str) -> OHMSResult<()> {
+    let proposal_key = proposal_id.to_string();
     let mut proposal = GOVERNANCE_PROPOSALS.with(|proposals| {
         proposals
             .borrow()
-            .get(proposal_id)
+            .get(&proposal_key)
             .ok_or_else(|| OHMSError::NotFound(format!("Proposal {} not found", proposal_id)))
     })?;
 
@@ -1371,9 +1376,7 @@ async fn check_and_finalize_proposal(proposal_id: &str) -> OHMSResult<()> {
         }
 
         GOVERNANCE_PROPOSALS.with(|proposals| {
-            proposals
-                .borrow_mut()
-                .insert(proposal_id.to_string(), proposal);
+            proposals.borrow_mut().insert(proposal_key.clone(), proposal);
         });
     }
 
@@ -1425,7 +1428,10 @@ fn get_current_block_height() -> u64 {
 }
 
 fn get_coordinator_canister_id() -> Option<Principal> {
-    // In a real implementation, this would read from environment or config
+    if let Some(configured) = option_env!("OHMS_COORDINATOR_CANISTER_ID") {
+        return Principal::from_text(configured).ok();
+    }
+
     None
 }
 

@@ -73,7 +73,7 @@ const TypingIndicator: React.FC = () => {
 
 // Main ModelChat component
 const ModelChat: React.FC = () => {
-  const { llmState, createLlmConversation, sendLlmMessage } = useAgent();
+  const { llmState, createLlmConversation, selectLlmConversation, sendLlmMessage } = useAgent();
   const [message, setMessage] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -175,10 +175,7 @@ const ModelChat: React.FC = () => {
                         ? 'bg-secondary/20 border border-secondary/30'
                         : 'hover:bg-surface'
                     }`}
-                    onClick={() => {
-                      // In a real implementation, this would switch conversations
-                      // Removed console log
-                    }}
+                    onClick={() => selectLlmConversation(conv.session_id)}
                   >
                     <div className="flex items-center gap-2">
                       <svg className="w-4 h-4 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">

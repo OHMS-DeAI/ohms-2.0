@@ -2,6 +2,7 @@ use candid::CandidType;
 use serde::{Deserialize, Serialize};
 
 use super::{instruction::AgentType, task::TaskPriority};
+use ohms_shared::ModelManifest;
 
 #[derive(Clone, Debug, Serialize, Deserialize, CandidType)]
 pub enum AgentStatus {
@@ -52,6 +53,7 @@ pub struct AgentStatusInfo {
     pub model_bound: bool,
     pub created_at: u64,
     pub last_active: u64,
+    pub model_manifest: Option<ModelManifest>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, CandidType)]
@@ -73,6 +75,7 @@ pub struct AgentRecord {
     pub agent_type: AgentType,
     pub status: AgentStatus,
     pub model_id: Option<String>,
+    pub model_manifest: Option<ModelManifest>,
     pub capabilities: Vec<String>,
     pub coordination_role: Option<String>,
     pub tasks_completed: u32,
@@ -105,6 +108,7 @@ impl AgentRecord {
             model_bound,
             created_at: self.created_at,
             last_active: self.last_active,
+            model_manifest: self.model_manifest.clone(),
         }
     }
 

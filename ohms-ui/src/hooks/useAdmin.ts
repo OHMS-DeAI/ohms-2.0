@@ -20,7 +20,13 @@ export const useAdmin = () => {
     isSystemHealthy: () => {
       if (!adminData?.health) return null
       const { model, agent, coordinator, econ } = adminData.health
-      return !!(model && agent && coordinator && econ)
+
+      const coordinatorStatus = coordinator?.status || 'Unknown'
+      const econStatus = econ?.status || 'Unknown'
+      const modelStatus = model?.status || 'Unknown'
+      const agentStatus = agent ? (agent.queue_depth > 5 ? 'Degraded' : 'Healthy') : 'Unknown'
+
+      return [modelStatus, agentStatus, coordinatorStatus, econStatus].every(status => status === 'Healthy')
     },
     
     getSystemAlerts: (): Array<{type: string, message: string}> => {
@@ -28,10 +34,28 @@ export const useAdmin = () => {
       if (!adminData?.health) return alerts
       
       const { health } = adminData
-      if (!health.model) alerts.push({ type: 'error', message: 'Model service down' })
-      if (!health.agent) alerts.push({ type: 'error', message: 'Agent service down' })
-      if (!health.coordinator) alerts.push({ type: 'error', message: 'Coordinator service down' })
-      if (!health.econ) alerts.push({ type: 'error', message: 'Economics service down' })
+
+      if (!health.model || health.model.status === 'Unhealthy') {
+        alerts.push({ type: 'error', message: 'Model canister reporting unhealthy status' })
+      } else if (health.model.status === 'Degraded') {
+        alerts.push({ type: 'warning', message: 'Model canister operating in degraded mode' })
+      }
+
+      if (!health.coordinator || health.coordinator.status === 'Unhealthy') {
+        alerts.push({ type: 'error', message: 'Coordinator canister unavailable' })
+      } else if (health.coordinator.status === 'Degraded') {
+        alerts.push({ type: 'warning', message: 'Coordinator canister degraded' })
+      }
+
+      if (!health.econ || health.econ.status === 'Unhealthy') {
+        alerts.push({ type: 'error', message: 'Economics canister unavailable' })
+      } else if (health.econ.status === 'Degraded') {
+        alerts.push({ type: 'warning', message: 'Economics canister degraded' })
+      }
+
+      if (!health.agent || (health.agent.queue_depth ?? 0) > 10) {
+        alerts.push({ type: 'warning', message: 'Agent canister backlog detected' })
+      }
       
       return alerts
     }

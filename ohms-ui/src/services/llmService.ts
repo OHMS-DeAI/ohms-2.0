@@ -86,7 +86,7 @@ export interface LlmState {
 
 // Event types for real-time updates
 export interface LlmEvent {
-  type: 'message' | 'conversation_created' | 'model_switched' | 'error' | 'quota_updated';
+  type: 'message' | 'conversation_created' | 'conversation_selected' | 'model_switched' | 'error' | 'quota_updated';
   session_id?: string;
   data: any;
 }
@@ -345,6 +345,25 @@ export class LlmService {
   // Get conversation history
   getConversation(sessionId: string): ConversationSession | undefined {
     return this.state.conversations.get(sessionId);
+  }
+
+  selectConversation(sessionId: string): ConversationSession | null {
+    const conversation = this.state.conversations.get(sessionId) || null;
+    if (!conversation) {
+      this.handleError(LlmError.InvalidRequest, `Conversation ${sessionId} not found`);
+      return null;
+    }
+
+    this.state.currentConversation = conversation;
+    this.emit({
+      type: 'conversation_selected',
+      session_id: sessionId,
+      data: conversation,
+    });
+
+    conversation.last_activity = BigInt(Date.now()) * BigInt(1_000_000);
+
+    return conversation;
   }
 
   // List all conversations for current user

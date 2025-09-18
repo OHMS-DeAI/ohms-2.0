@@ -28,4 +28,19 @@ impl Guards {
 
         Ok(())
     }
+
+    pub fn require_model_canister() -> Result<(), String> {
+        let caller = caller();
+        if caller == Principal::anonymous() {
+            return Err("Model canister authentication required".to_string());
+        }
+
+        if let Some(expected) = option_env!("OHMS_MODEL_CANISTER_ID") {
+            if caller.to_text() != expected {
+                return Err("Caller is not recognized as the model canister".to_string());
+            }
+        }
+
+        Ok(())
+    }
 }

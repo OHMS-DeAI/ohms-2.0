@@ -2,7 +2,6 @@
 resolver = "2"
 members = [
     "ohms-shared",
-    "ohms-adaptq",
     "ohms-agent",
     "ohms-coordinator",
     "ohms-econ",
@@ -35,5 +34,4 @@ futures = "0.3"
 getrandom = { version = "0.2", features = ["custom"] }
 
 # OHMS internal dependencies
-ohms-adaptq = { path = "ohms-adaptq" }
 ohms-shared = { path = "ohms-shared" }

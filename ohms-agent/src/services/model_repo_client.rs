@@ -1,61 +1,17 @@
-use candid::{CandidType, Principal};
+use candid::Principal;
 use ic_cdk::api::call::{call, CallResult};
+use ohms_shared::{ArtifactChunkInfo, ModelInfo, ModelManifest};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use ohms_adaptq::novaq::NOVAQModel;
-use ohms_adaptq::{PublicNOVAQ, ValidationReport};
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ChunkData {
+    pub info: ArtifactChunkInfo,
+    pub data: Vec<u8>,
+}
 
 pub struct ModelRepoClient {
     canister_id: Principal,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, CandidType)]
-pub struct ModelInfo {
-    pub model_id: String,
-    pub version: String,
-    pub state: ModelState,
-    pub compression_type: CompressionType,
-    pub compression_ratio: Option<f32>,
-    pub accuracy_retention: Option<f32>,
-    pub size_bytes: u64,
-    pub uploaded_at: u64,
-    pub activated_at: Option<u64>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, CandidType)]
-pub enum ModelState {
-    Pending,
-    Active,
-    Deprecated,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, CandidType)]
-pub enum CompressionType {
-    NOVAQ,
-    Uncompressed,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, CandidType)]
-pub struct NOVAQValidationResult {
-    pub compression_ratio: f32,
-    pub bit_accuracy: f32,
-    pub quality_score: f32,
-    pub passed: bool,
-    pub issues: Vec<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, CandidType)]
-pub struct NOVAQModelMeta {
-    pub target_bits: f32,
-    pub num_subspaces: usize,
-    pub compression_ratio: f32,
-    pub bit_accuracy: f32,
-    pub quality_score: f32,
-    pub codebook_size_l1: usize,
-    pub codebook_size_l2: usize,
-    pub parameter_count: usize,
-    pub checksum: String,
 }
 
 impl ModelRepoClient {
@@ -76,6 +32,49 @@ impl ModelRepoClient {
         }
     }
 
+    pub async fn list_models(
+        &self,
+        state: Option<ohms_shared::ModelState>,
+    ) -> Result<Vec<ModelInfo>, String> {
+        let result: CallResult<(Vec<ModelInfo>,)> =
+            call(self.canister_id, "list_models", (state,)).await;
+
+        match result {
+            Ok((models,)) => Ok(models),
+            Err((code, msg)) => Err(format!("list_models failed ({code:?}): {msg}")),
+        }
+    }
+
+    pub async fn get_manifest(&self, model_id: &str) -> Result<ModelManifest, String> {
+        let result: CallResult<(Option<ModelManifest>,)> =
+            call(self.canister_id, "get_manifest", (model_id.to_string(),)).await;
+
+        match result {
+            Ok((Some(manifest),)) => Ok(manifest),
+            Ok((None,)) => Err(format!("manifest for {model_id} not found")),
+            Err((code, msg)) => Err(format!("get_manifest failed ({code:?}): {msg}")),
+        }
+    }
+
+    pub async fn fetch_chunk(
+        &self,
+        model_id: &str,
+        chunk_id: &str,
+    ) -> Result<Vec<u8>, String> {
+        let result: CallResult<(Option<Vec<u8>>,)> = call(
+            self.canister_id,
+            "get_chunk",
+            (model_id.to_string(), chunk_id.to_string()),
+        )
+        .await;
+
+        match result {
+            Ok((Some(data),)) => Ok(data),
+            Ok((None,)) => Err(format!("chunk {chunk_id} not found for model {model_id}")),
+            Err((code, msg)) => Err(format!("get_chunk failed ({code:?}): {msg}")),
+        }
+    }
+
     pub async fn notify_model_access(&self, model_id: &str, agent_id: &str) -> Result<(), String> {
         let result: CallResult<(Result<(), String>,)> = call(
             self.canister_id,
@@ -91,74 +90,25 @@ impl ModelRepoClient {
         }
     }
 
-    pub async fn validate_novaq_model(
-        model_id: &str,
-        model_data: &[u8],
-    ) -> Result<NOVAQValidationResult, String> {
-        let model = deserialize_model(model_data)?;
-        let engine = PublicNOVAQ::new(model.config.clone());
-        let report = engine
-            .validate_model(&model)
-            .map_err(|e| format!("failed to validate NOVAQ model {model_id}: {e}"))?;
-        Ok(report.into())
-    }
-
-    pub async fn extract_novaq_metadata(model_data: &[u8]) -> Result<NOVAQModelMeta, String> {
-        let model = deserialize_model(model_data)?;
-        Ok(build_meta(&model))
-    }
-
-    pub fn is_novaq_model(model_data: &[u8]) -> bool {
-        deserialize_model(model_data).is_ok()
-    }
-
-    pub fn get_novaq_quality_score(model_data: &[u8]) -> Result<f64, String> {
-        let model = deserialize_model(model_data)?;
-        Ok(build_meta(&model).quality_score as f64)
-    }
-}
-
-fn deserialize_model(model_data: &[u8]) -> Result<NOVAQModel, String> {
-    bincode::deserialize::<NOVAQModel>(model_data)
-        .map_err(|e| format!("invalid NOVAQ model payload: {e}"))
-}
-
-fn build_meta(model: &NOVAQModel) -> NOVAQModelMeta {
-    let parameter_count: usize = model
-        .weight_shapes
-        .values()
-        .map(|shape| shape.iter().product::<usize>())
-        .sum();
-    let checksum = {
+    pub fn verify_chunk_data(chunk: &ArtifactChunkInfo, data: &[u8]) -> Result<(), String> {
         let mut hasher = Sha256::new();
-        hasher.update(
-            bincode::serialize(model)
-                .expect("serializing NOVAQ model should not fail during metadata extraction"),
-        );
-        hex::encode(hasher.finalize())
-    };
-
-    NOVAQModelMeta {
-        target_bits: model.config.target_bits,
-        num_subspaces: model.config.num_subspaces,
-        compression_ratio: model.compression_ratio,
-        bit_accuracy: model.bit_accuracy,
-        quality_score: (model.compression_ratio / 100.0 + model.bit_accuracy) / 2.0,
-        codebook_size_l1: model.config.codebook_size_l1,
-        codebook_size_l2: model.config.codebook_size_l2,
-        parameter_count,
-        checksum,
-    }
-}
-
-impl From<ValidationReport> for NOVAQValidationResult {
-    fn from(report: ValidationReport) -> Self {
-        Self {
-            compression_ratio: report.compression_ratio,
-            bit_accuracy: report.bit_accuracy,
-            quality_score: report.quality_score,
-            passed: report.passed_validation,
-            issues: report.issues,
+        hasher.update(data);
+        let digest = hex::encode(hasher.finalize());
+        if digest == chunk.sha256 {
+            Ok(())
+        } else {
+            Err(format!(
+                "chunk {} hash mismatch: expected {}, computed {}",
+                chunk.chunk_id, chunk.sha256, digest
+            ))
         }
+    }
+
+    pub fn build_chunk_data(
+        chunk: ArtifactChunkInfo,
+        data: Vec<u8>,
+    ) -> Result<ChunkData, String> {
+        Self::verify_chunk_data(&chunk, &data)?;
+        Ok(ChunkData { info: chunk, data })
     }
 }

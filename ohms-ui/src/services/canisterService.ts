@@ -28,77 +28,121 @@ const { ohms_model: OHMS_MODEL_CANISTER_ID, ohms_agent: OHMS_AGENT_CANISTER_ID, 
 
 // Candid interface definitions - matching actual deployed interfaces
 const modelCanisterIdl = ({ IDL }: any) => {
-  const AuditEventType = IDL.Variant({
-    BadgeGrant: IDL.Null,
-    ChunkAccess: IDL.Null,
-    Activate: IDL.Null,
-    Upload: IDL.Null,
-    Deprecate: IDL.Null,
-  });
-  
-  const AuditEvent = IDL.Record({
-    actor: IDL.Text,
-    timestamp: IDL.Nat64,
-    details: IDL.Text,
-    model_id: IDL.Text,
-    event_type: AuditEventType,
+  const ComponentHealth = IDL.Variant({
+    Healthy: IDL.Null,
+    Degraded: IDL.Null,
+    Unhealthy: IDL.Null,
+    Unknown: IDL.Null,
   });
 
-  const ModelState = IDL.Variant({
-    Active: IDL.Null,
-    Deprecated: IDL.Null,
-    Pending: IDL.Null,
+  const SystemHealth = IDL.Record({
+    canister_id: IDL.Principal,
+    status: ComponentHealth,
+    uptime_seconds: IDL.Nat64,
+    memory_usage_mb: IDL.Float32,
+    last_update: IDL.Nat64,
+    version: IDL.Text,
+    metrics: IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
   });
 
-  const ChunkInfo = IDL.Record({
-    id: IDL.Text,
-    sha256: IDL.Text,
-    size: IDL.Nat64,
+  const QuantizationFormat = IDL.Variant({ NOVAQ: IDL.Null, GGUF: IDL.Null, Custom: IDL.Text });
+  const ModelState = IDL.Variant({ Pending: IDL.Null, Active: IDL.Null, Deprecated: IDL.Null });
+  const QuantizedArtifactMetadata = IDL.Record({
+    format: QuantizationFormat,
+    artifact_checksum: IDL.Text,
+    compression_ratio: IDL.Float32,
+    accuracy_retention: IDL.Float32,
+    bits_per_weight: IDL.Opt(IDL.Float32),
+    notes: IDL.Opt(IDL.Text),
+  });
+  const ArtifactChunkInfo = IDL.Record({
+    chunk_id: IDL.Text,
     offset: IDL.Nat64,
+    size_bytes: IDL.Nat64,
+    sha256: IDL.Text,
   });
-
   const ModelManifest = IDL.Record({
-    activated_at: IDL.Opt(IDL.Nat64),
+    model_id: IDL.Text,
     version: IDL.Text,
     state: ModelState,
-    digest: IDL.Text,
-    chunks: IDL.Vec(ChunkInfo),
-    model_id: IDL.Text,
     uploaded_at: IDL.Nat64,
+    activated_at: IDL.Opt(IDL.Nat64),
+    total_size_bytes: IDL.Nat64,
+    chunk_count: IDL.Nat32,
+    checksum: IDL.Text,
+    quantization: QuantizedArtifactMetadata,
+    metadata: IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
+    chunks: IDL.Vec(ArtifactChunkInfo),
   });
-
-  const ModelMeta = IDL.Record({
-    tokenizer_id: IDL.Text,
-    vocab_size: IDL.Nat32,
-    arch: IDL.Text,
-    ctx_window: IDL.Nat32,
-    license: IDL.Text,
-    family: IDL.Text,
-  });
-
-  const ChunkData = IDL.Record({ data: IDL.Vec(IDL.Nat8), chunk_id: IDL.Text });
-  
-  const ModelUpload = IDL.Record({
-    signature: IDL.Opt(IDL.Text),
-    meta: ModelMeta,
-    chunks: IDL.Vec(ChunkData),
+  const ModelInfo = IDL.Record({
     model_id: IDL.Text,
-    manifest: ModelManifest,
+    version: IDL.Text,
+    state: ModelState,
+    quantization_format: QuantizationFormat,
+    compression_ratio: IDL.Opt(IDL.Float32),
+    accuracy_retention: IDL.Opt(IDL.Float32),
+    size_bytes: IDL.Nat64,
+    uploaded_at: IDL.Nat64,
+    activated_at: IDL.Opt(IDL.Nat64),
   });
 
-  const Result = IDL.Variant({ Ok: IDL.Text, Err: IDL.Text });
+  const ArtifactChunkUpload = IDL.Record({
+    chunk_id: IDL.Text,
+    order: IDL.Nat32,
+    data: IDL.Vec(IDL.Nat8),
+    sha256: IDL.Text,
+  });
+
+  const ModelUploadRequest = IDL.Record({
+    name: IDL.Text,
+    description: IDL.Text,
+    model_type: IDL.Text,
+    version: IDL.Text,
+    quantization: QuantizedArtifactMetadata,
+    metadata: IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
+    chunks: IDL.Vec(ArtifactChunkUpload),
+  });
+
+  const ModelUploadResponse = IDL.Record({
+    model_id: IDL.Text,
+    upload_time: IDL.Nat64,
+    checksum: IDL.Text,
+    total_size_bytes: IDL.Nat64,
+    chunk_count: IDL.Nat32,
+  });
+
+  const ModelStatus = IDL.Variant({ Uploading: IDL.Null, Ready: IDL.Null, Deployed: IDL.Null, Failed: IDL.Null, Deleted: IDL.Null });
+
+  const OHMSError = IDL.Variant({
+    InvalidInput: IDL.Text,
+    InvalidState: IDL.Text,
+    AlreadyExists: IDL.Text,
+    NotFound: IDL.Text,
+    Unauthorized: IDL.Text,
+    InternalError: IDL.Text,
+    NetworkError: IDL.Text,
+    CommunicationFailed: IDL.Text,
+    QuotaExceeded: IDL.Text,
+    InsufficientFunds: IDL.Text,
+    ModelNotReady: IDL.Text,
+    CompressionFailed: IDL.Text,
+  });
+
+  const ResultUpload = IDL.Variant({ Ok: ModelUploadResponse, Err: OHMSError });
+  const ResultStatus = IDL.Variant({ Ok: ModelStatus, Err: OHMSError });
+  const ResultUnit = IDL.Variant({ Ok: IDL.Null, Err: OHMSError });
+  const ResultModelInfo = IDL.Variant({ Ok: ModelInfo, Err: OHMSError });
 
   return IDL.Service({
-    health: IDL.Func([], [IDL.Text], ['query']),
-    list_models: IDL.Func([IDL.Opt(ModelState)], [IDL.Vec(ModelManifest)], ['query']),
+    health_check: IDL.Func([], [SystemHealth], ['query']),
+    list_models: IDL.Func([IDL.Opt(IDL.Principal)], [IDL.Vec(ModelInfo)], ['query']),
+    list_active_models: IDL.Func([], [IDL.Vec(ModelInfo)], ['query']),
+    get_model_info: IDL.Func([IDL.Text], [ResultModelInfo], ['query']),
     get_manifest: IDL.Func([IDL.Text], [IDL.Opt(ModelManifest)], ['query']),
-    get_chunk: IDL.Func([IDL.Text, IDL.Text], [IDL.Opt(IDL.Vec(IDL.Nat8))], ['query']),
-    get_audit_log: IDL.Func([], [IDL.Vec(AuditEvent)], ['query']),
-    // Additional methods from actual interface
-    activate_model: IDL.Func([IDL.Text], [Result], []),
-    add_authorized_uploader: IDL.Func([IDL.Text], [Result], []),
-    deprecate_model: IDL.Func([IDL.Text], [Result], []),
-    submit_model: IDL.Func([ModelUpload], [Result], []),
+    upload_model: IDL.Func([ModelUploadRequest], [ResultUpload], []),
+    deploy_model: IDL.Func([IDL.Text], [ResultUnit], []),
+    delete_model: IDL.Func([IDL.Text], [ResultUnit], []),
+    get_model_status: IDL.Func([IDL.Text], [ResultStatus], ['query']),
   });
 };
 
@@ -106,6 +150,23 @@ const coordinatorCanisterIdl = ({ IDL }: any) => {
   // Result variants matching the actual canister
   const Result = IDL.Variant({ Ok: IDL.Text, Err: IDL.Text });
   const Result_8 = IDL.Variant({ Ok: IDL.Null, Err: IDL.Text });
+
+  const ComponentHealth = IDL.Variant({
+    Healthy: IDL.Null,
+    Degraded: IDL.Null,
+    Unhealthy: IDL.Null,
+    Unknown: IDL.Null,
+  });
+
+  const SystemHealth = IDL.Record({
+    canister_id: IDL.Principal,
+    status: ComponentHealth,
+    uptime_seconds: IDL.Nat64,
+    memory_usage_mb: IDL.Float32,
+    last_update: IDL.Nat64,
+    version: IDL.Text,
+    metrics: IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
+  });
 
   // OHMS 2.0 Types from actual ohms-coordinator.did
   const RoutingMode = IDL.Variant({ Unicast: IDL.Null, Broadcast: IDL.Null, AgentSpawning: IDL.Null });
@@ -131,15 +192,6 @@ const coordinatorCanisterIdl = ({ IDL }: any) => {
     selected_agents: IDL.Vec(IDL.Text),
     routing_time_ms: IDL.Nat64,
     selection_criteria: IDL.Text,
-  });
-  const CoordinatorHealth = IDL.Record({
-    total_agents: IDL.Nat32,
-    active_agents: IDL.Nat32,
-    total_agent_creations: IDL.Nat32,
-    active_instructions: IDL.Nat32,
-    total_routes_processed: IDL.Nat64,
-    average_routing_time_ms: IDL.Float64,
-    dedup_cache_size: IDL.Nat32,
   });
   const RoutingStats = IDL.Record({
     agent_id: IDL.Text,
@@ -269,7 +321,7 @@ const coordinatorCanisterIdl = ({ IDL }: any) => {
 
   return IDL.Service({
     // Health & registry - matching actual interface
-    health: IDL.Func([], [CoordinatorHealth], ['query']),
+    health: IDL.Func([], [SystemHealth], ['query']),
     list_agents: IDL.Func([], [Result_5], ['query']),
     get_agent: IDL.Func([IDL.Text], [Result_1], ['query']),
     register_agent: IDL.Func([AgentRegistration], [Result], []),
@@ -335,7 +387,22 @@ const econCanisterIdl = ({ IDL }: any) => {
   const Receipt = IDL.Record({ receipt_id: IDL.Text, job_id: IDL.Text, escrow_id: IDL.Text, agent_id: IDL.Text, actual_cost: IDL.Nat64, fees_breakdown: FeesBreakdown, settlement_status: SettlementStatus, created_at: IDL.Nat64, settled_at: IDL.Opt(IDL.Nat64) })
   const Balance = IDL.Record({ principal_id: IDL.Text, available_balance: IDL.Nat64, escrowed_balance: IDL.Nat64, total_earnings: IDL.Nat64, last_updated: IDL.Nat64 })
   const FeePolicy = IDL.Record({ protocol_fee_percentage: IDL.Float32, agent_fee_percentage: IDL.Float32, minimum_fee: IDL.Nat64, priority_multipliers: IDL.Vec(IDL.Tuple(IDL.Text, IDL.Float32)), last_updated: IDL.Nat64 })
-  const EconHealth = IDL.Record({ total_escrows: IDL.Nat32, active_escrows: IDL.Nat32, total_receipts: IDL.Nat32, pending_settlements: IDL.Nat32, total_volume: IDL.Nat64, protocol_fees_collected: IDL.Nat64, average_job_cost: IDL.Float64 })
+  const EconComponentHealth = IDL.Variant({
+    Healthy: IDL.Null,
+    Degraded: IDL.Null,
+    Unhealthy: IDL.Null,
+    Unknown: IDL.Null,
+  })
+
+  const EconHealth = IDL.Record({
+    canister_id: IDL.Principal,
+    status: EconComponentHealth,
+    uptime_seconds: IDL.Nat64,
+    memory_usage_mb: IDL.Float32,
+    last_update: IDL.Nat64,
+    version: IDL.Text,
+    metrics: IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
+  })
   
   // Subscription types
   const InferenceRate = IDL.Variant({ Standard: IDL.Null, Priority: IDL.Null, Premium: IDL.Null })
@@ -457,17 +524,17 @@ export const getCanisterIds = () => ({
 export const healthCheck = async () => {
   try {
     const [modelHealth, agentHealth, coordinatorHealth, econHealth] = await Promise.allSettled([
-      modelCanister.health(),
+      (modelCanister as any).health_check?.() ?? Promise.resolve(null),
       agentCanister.health(),
       coordinatorCanister.health(),
       econCanister.health(),
     ]);
 
     return {
-      model: modelHealth.status === 'fulfilled' ? modelHealth.value : 'Error',
-      agent: agentHealth.status === 'fulfilled' ? agentHealth.value : 'Error',
-      coordinator: coordinatorHealth.status === 'fulfilled' ? coordinatorHealth.value : 'Error',
-      econ: econHealth.status === 'fulfilled' ? econHealth.value : 'Error',
+      model: modelHealth.status === 'fulfilled' ? modelHealth.value : null,
+      agent: agentHealth.status === 'fulfilled' ? agentHealth.value : null,
+      coordinator: coordinatorHealth.status === 'fulfilled' ? coordinatorHealth.value : null,
+      econ: econHealth.status === 'fulfilled' ? econHealth.value : null,
     };
   } catch (error) {
     // Removed console log

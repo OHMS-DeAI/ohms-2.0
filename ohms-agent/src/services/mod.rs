@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::domain::{
     AgentConfig, AgentPerformanceMetrics, AgentRecord, AgentTask, InferenceResponse, SystemMetrics,
 };
+use ohms_shared::ModelManifest;
 
 pub mod agent_factory;
 pub mod binding_service;
@@ -26,7 +27,7 @@ pub use cache_service::CacheService;
 pub use inference_service::InferenceService;
 pub use instruction_analyzer::InstructionAnalyzer;
 pub use memory_service::MemoryService;
-pub use model_repo_client::{ModelRepoClient, NOVAQModelMeta, NOVAQValidationResult};
+pub use model_repo_client::ModelRepoClient;
 
 thread_local! {
     static STATE: RefCell<AgentCanisterState> = RefCell::new(AgentCanisterState::default());
@@ -113,6 +114,7 @@ impl AgentCanisterState {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ModelBindingState {
     pub model_id: String,
+    pub manifest: ModelManifest,
     pub bound_at: u64,
     pub last_prefetch_at: u64,
     pub chunks_loaded: u32,
@@ -121,14 +123,15 @@ pub struct ModelBindingState {
 }
 
 impl ModelBindingState {
-    pub fn new(model_id: String, total_chunks: u32) -> Self {
+    pub fn new(manifest: ModelManifest) -> Self {
         let now = time();
         Self {
-            model_id,
+            total_chunks: manifest.chunk_count.max(1),
+            model_id: manifest.model_id.clone(),
+            manifest,
             bound_at: now,
             last_prefetch_at: now,
             chunks_loaded: 0,
-            total_chunks,
             ready: false,
         }
     }
@@ -143,6 +146,9 @@ impl ModelBindingState {
             .chunks_loaded
             .saturating_add(count)
             .min(self.total_chunks);
+        if self.chunks_loaded >= self.total_chunks {
+            self.ready = true;
+        }
     }
 }
 

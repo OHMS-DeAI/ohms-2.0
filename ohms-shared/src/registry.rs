@@ -2,16 +2,18 @@
 // Manages canister discovery and inter-canister communication
 
 use candid::{CandidType, Principal};
-use ic_cdk::api::management_canister::main::{
-    canister_status, CanisterIdRecord, CanisterStatusResponse,
-};
-use ic_stable_structures::{memory::Memory, storable::Bound, DefaultMemoryImpl, StableBTreeMap, Storable};
+use ic_cdk::api::management_canister::main::{canister_status, CanisterIdRecord};
+use ic_stable_structures::{storable::Bound, DefaultMemoryImpl, StableBTreeMap, Storable};
 use crate::{OHMSError, OHMSResult};
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
 use std::collections::HashMap;
+use std::io;
 
-type MemoryId = u8;
+#[cfg(not(target_arch = "wasm32"))]
+use serde_json::Value;
+#[cfg(not(target_arch = "wasm32"))]
+use std::{fs, path::PathBuf};
+
 type CanisterRegistryMemory = DefaultMemoryImpl;
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
@@ -71,8 +73,25 @@ impl CanisterRegistry {
     pub fn register_canister(&mut self, info: CanisterInfo) -> OHMSResult<()> {
         let key = info.canister_id.to_text();
 
-        // Validate the canister exists and is accessible
-        // Note: In a real implementation, we would verify the canister's Candid interface
+        if info.canister_id == Principal::anonymous() {
+            return Err(OHMSError::InvalidInput(
+                "Cannot register anonymous principal as a canister".to_string(),
+            ));
+        }
+
+        if info.version.trim().is_empty() {
+            return Err(OHMSError::InvalidInput(
+                format!("Canister {} must report a version", info.canister_id),
+            ));
+        }
+
+        if let Some(existing) = self.canisters.get(&key) {
+            if existing.version == info.version {
+                self.canister_ids_by_type
+                    .insert(info.canister_type.clone(), info.canister_id);
+                return Ok(());
+            }
+        }
 
         self.canisters.insert(key, info.clone());
         self.canister_ids_by_type
@@ -124,20 +143,26 @@ impl CanisterRegistry {
     pub async fn health_check_all(&mut self) -> Vec<(String, CanisterStatus)> {
         let mut results = Vec::new();
 
-        for (canister_id, info) in self.canisters.iter() {
-            let status = self.check_canister_health(&info.canister_id).await;
-            self.update_health_status(
-                &canister_id,
-                status.clone(),
-                match status {
-                    CanisterStatus::Healthy => 1.0,
-                    CanisterStatus::Degraded => 0.5,
-                    CanisterStatus::Unhealthy => 0.1,
-                    CanisterStatus::Stopped => 0.0,
-                    CanisterStatus::Unknown => 0.0,
-                },
-            )
-            .unwrap_or(());
+        let canisters: Vec<(String, Principal)> = self
+            .canisters
+            .iter()
+            .map(|(id, info)| (id.clone(), info.canister_id))
+            .collect();
+
+        for (canister_id, principal) in canisters {
+            let status = self.check_canister_health(&principal).await;
+            let health_score = match status {
+                CanisterStatus::Healthy => 1.0,
+                CanisterStatus::Degraded => 0.5,
+                CanisterStatus::Unhealthy => 0.1,
+                CanisterStatus::Stopped => 0.0,
+                CanisterStatus::Unknown => 0.0,
+            };
+
+            if let Err(err) = self.update_health_status(&canister_id, status.clone(), health_score)
+            {
+                ic_cdk::println!("Failed to update health for {}: {:?}", canister_id, err);
+            }
 
             results.push((canister_id, status));
         }
@@ -238,20 +263,46 @@ impl CanisterRegistry {
         Ok(())
     }
 
-    fn read_canister_id_from_file(&self, canister_name: &str) -> Result<String, std::io::Error> {
-        // In a real implementation, this would read from .dfx/local/canister_ids.json
-        // For now, we'll use hardcoded fallbacks or return an error
+    #[cfg(not(target_arch = "wasm32"))]
+    fn read_canister_id_from_file(&self, canister_name: &str) -> Result<String, io::Error> {
+        let json_override = std::env::var("OHMS_CANISTER_IDS_JSON").ok();
+        let contents = if let Some(raw) = json_override {
+            raw
+        } else {
+            let path = std::env::var("OHMS_CANISTER_IDS_PATH")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| PathBuf::from(".dfx/local/canister_ids.json"));
+            fs::read_to_string(&path)?
+        };
 
-        match canister_name {
-            "ohms_model" => Ok("rdmx6-jaaaa-aaaaa-aaadq-cai".to_string()),
-            "ohms_agent" => Ok("rrkah-fqaaa-aaaaa-aaaaq-cai".to_string()),
-            "ohms_coordinator" => Ok("ryjl3-tyaaa-aaaaa-aaaba-cai".to_string()),
-            "ohms_econ" => Ok("raxkx-dyaaa-aaaaa-aaafa-cai".to_string()),
-            _ => Err(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "Canister not found",
-            )),
-        }
+        let data: Value = serde_json::from_str(&contents)
+            .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+
+        data.get(canister_name)
+            .and_then(|entry| entry.get("ic").or_else(|| entry.get("local")))
+            .and_then(Value::as_str)
+            .map(|s| s.to_string())
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("Canister {canister_name} not defined in supplied configuration"),
+                )
+            })
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn read_canister_id_from_file(&self, canister_name: &str) -> Result<String, io::Error> {
+        let env_value = match canister_name {
+            "ohms_model" => option_env!("OHMS_CANISTER_ID_MODEL"),
+            "ohms_agent" => option_env!("OHMS_CANISTER_ID_AGENT"),
+            "ohms_coordinator" => option_env!("OHMS_CANISTER_ID_COORDINATOR"),
+            "ohms_econ" => option_env!("OHMS_CANISTER_ID_ECON"),
+            _ => None,
+        };
+
+        env_value
+            .map(str::to_string)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Canister id not provided"))
     }
 
     pub fn get_all_canister_ids(&self) -> HashMap<String, Principal> {
@@ -322,18 +373,22 @@ pub fn init_canister_registry() -> OHMSResult<()> {
     })
 }
 
-pub fn get_canister_registry() -> OHMSResult<std::cell::Ref<'static, CanisterRegistry>> {
-    Ok(CANISTER_REGISTRY.with(|registry| {
-        std::cell::Ref::map(registry.borrow(), |opt| {
-            opt.as_ref().expect("Canister registry not initialized")
-        })
-    }))
+pub fn with_canister_registry<R>(f: impl FnOnce(&CanisterRegistry) -> R) -> OHMSResult<R> {
+    CANISTER_REGISTRY.with(|registry| {
+        registry
+            .borrow()
+            .as_ref()
+            .map(f)
+            .ok_or_else(|| OHMSError::InternalError("Canister registry not initialized".into()))
+    })
 }
 
-pub fn get_canister_registry_mut() -> OHMSResult<std::cell::RefMut<'static, CanisterRegistry>> {
-    Ok(CANISTER_REGISTRY.with(|registry| {
-        std::cell::RefMut::map(registry.borrow_mut(), |opt| {
-            opt.as_mut().expect("Canister registry not initialized")
-        })
-    }))
+pub fn with_canister_registry_mut<R>(f: impl FnOnce(&mut CanisterRegistry) -> R) -> OHMSResult<R> {
+    CANISTER_REGISTRY.with(|registry| {
+        registry
+            .borrow_mut()
+            .as_mut()
+            .map(f)
+            .ok_or_else(|| OHMSError::InternalError("Canister registry not initialized".into()))
+    })
 }

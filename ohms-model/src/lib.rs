@@ -1,28 +1,28 @@
 // OHMS Model Canister - Complete Implementation
-// Real Internet Computer canister for AI model management and compression
+// Internet Computer canister for AI model registry and quantized artifact storage
 
 use candid::{candid_method, CandidType, Principal};
 use ic_cdk::api::call::{call, CallResult};
-use ic_cdk::{api, caller, id, init, post_upgrade, pre_upgrade, query, storage, update};
+use ic_cdk::{api, caller, id, init, post_upgrade, pre_upgrade, query, update};
 use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager, VirtualMemory},
     storable::Bound,
     DefaultMemoryImpl, StableBTreeMap, Storable,
 };
-use ohms_adaptq::{CompressionConfig, CompressionResult, ModelFormat, NOVAQCompressor};
 use ohms_shared::{
-    current_time_millis, current_time_seconds, novaq::NOVAQIntegration, CanisterInfo,
-    ComponentHealth, OHMSError, OHMSResult, SystemHealth,
+    current_time_millis, current_time_seconds, ArtifactChunkInfo, CanisterInfo, CanisterStatus,
+    CanisterType, ComponentHealth, ModelInfo, ModelManifest, ModelState, QuantizedArtifactMetadata,
+    OHMSError, OHMSResult, SystemHealth,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::borrow::Cow;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 type Memory = VirtualMemory<DefaultMemoryImpl>;
 type ModelStorage = StableBTreeMap<String, StorableModelInfo, Memory>;
-type CompressionJobStorage = StableBTreeMap<String, CompressionJob, Memory>;
+type ChunkStorage = StableBTreeMap<String, StoredChunk, Memory>;
 type InferenceSessionStorage = StableBTreeMap<String, InferenceSession, Memory>;
 
 thread_local! {
@@ -36,7 +36,7 @@ thread_local! {
         )
     );
 
-    static COMPRESSION_JOBS: RefCell<CompressionJobStorage> = RefCell::new(
+    static CHUNKS: RefCell<ChunkStorage> = RefCell::new(
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(1)))
         )
@@ -48,8 +48,6 @@ thread_local! {
         )
     );
 
-    static NOVAQ_INTEGRATION: RefCell<NOVAQIntegration> = RefCell::new(NOVAQIntegration::new());
-
     static SYSTEM_METRICS: RefCell<ModelCanisterMetrics> = RefCell::new(ModelCanisterMetrics::new());
 }
 
@@ -59,20 +57,17 @@ pub struct StorableModelInfo {
     pub name: String,
     pub description: String,
     pub model_type: String,
-    pub format: ModelFormat,
     pub version: String,
-    pub size_bytes: u64,
-    pub compressed_size_bytes: Option<u64>,
-    pub compression_ratio: Option<f32>,
-    pub sha256_hash: String,
+    pub total_size_bytes: u64,
+    pub checksum: String,
     pub upload_time: u64,
-    pub compression_time: Option<u64>,
     pub deployment_time: Option<u64>,
     pub status: ModelStatus,
     pub owner: Principal,
     pub metadata: HashMap<String, String>,
+    pub quantization: QuantizedArtifactMetadata,
+    pub chunk_manifest: Vec<ArtifactChunkInfo>,
     pub performance_metrics: ModelPerformanceMetrics,
-    pub novaq_config: Option<CompressionConfig>,
 }
 
 impl Storable for StorableModelInfo {
@@ -88,20 +83,14 @@ impl Storable for StorableModelInfo {
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
-pub struct CompressionJob {
-    pub job_id: String,
+pub struct StoredChunk {
     pub model_id: String,
-    pub compression_config: CompressionConfig,
-    pub status: CompressionStatus,
-    pub progress_percent: f32,
-    pub start_time: u64,
-    pub completion_time: Option<u64>,
-    pub result: Option<CompressionResult>,
-    pub error_message: Option<String>,
-    pub requester: Principal,
+    pub chunk_id: String,
+    pub sha256: String,
+    pub data: Vec<u8>,
 }
 
-impl Storable for CompressionJob {
+impl Storable for StoredChunk {
     const BOUND: Bound = Bound::Unbounded;
 
     fn to_bytes(&self) -> Cow<[u8]> {
@@ -141,21 +130,10 @@ impl Storable for InferenceSession {
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum ModelStatus {
     Uploading,
-    Uploaded,
-    Compressing,
-    Compressed,
+    Ready,
     Deployed,
     Failed,
     Deleted,
-}
-
-#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub enum CompressionStatus {
-    Queued,
-    InProgress,
-    Completed,
-    Failed,
-    Cancelled,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -179,15 +157,12 @@ pub struct ModelPerformanceMetrics {
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
 pub struct ModelCanisterMetrics {
     pub total_models: u32,
-    pub compressed_models: u32,
+    pub ready_models: u32,
     pub deployed_models: u32,
-    pub active_inference_sessions: u32,
-    pub total_compression_jobs: u32,
-    pub successful_compressions: u32,
-    pub failed_compressions: u32,
+    pub deleted_models: u32,
     pub total_storage_used_bytes: u64,
-    pub compression_savings_bytes: u64,
-    pub average_compression_ratio: f32,
+    pub total_chunks: u64,
+    pub active_inference_sessions: u32,
     pub last_updated: u64,
 }
 
@@ -195,18 +170,23 @@ impl ModelCanisterMetrics {
     fn new() -> Self {
         Self {
             total_models: 0,
-            compressed_models: 0,
+            ready_models: 0,
             deployed_models: 0,
-            active_inference_sessions: 0,
-            total_compression_jobs: 0,
-            successful_compressions: 0,
-            failed_compressions: 0,
+            deleted_models: 0,
             total_storage_used_bytes: 0,
-            compression_savings_bytes: 0,
-            average_compression_ratio: 0.0,
+            total_chunks: 0,
+            active_inference_sessions: 0,
             last_updated: current_time_seconds(),
         }
     }
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct ArtifactChunkUpload {
+    pub chunk_id: String,
+    pub order: u32,
+    pub data: Vec<u8>,
+    pub sha256: String,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
@@ -214,20 +194,19 @@ pub struct ModelUploadRequest {
     pub name: String,
     pub description: String,
     pub model_type: String,
-    pub format: ModelFormat,
     pub version: String,
-    pub data: Vec<u8>,
+    pub quantization: QuantizedArtifactMetadata,
     pub metadata: HashMap<String, String>,
-    pub compression_config: Option<CompressionConfig>,
+    pub chunks: Vec<ArtifactChunkUpload>,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
 pub struct ModelUploadResponse {
     pub model_id: String,
     pub upload_time: u64,
-    pub sha256_hash: String,
-    pub size_bytes: u64,
-    pub compression_job_id: Option<String>,
+    pub checksum: String,
+    pub total_size_bytes: u64,
+    pub chunk_count: u32,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
@@ -261,10 +240,6 @@ fn init() {
 
     // Start background tasks
     ic_cdk::spawn(async {
-        start_compression_worker().await;
-    });
-
-    ic_cdk::spawn(async {
         start_metrics_updater().await;
     });
 }
@@ -285,10 +260,6 @@ fn post_upgrade() {
 
     // Restart background tasks
     ic_cdk::spawn(async {
-        start_compression_worker().await;
-    });
-
-    ic_cdk::spawn(async {
         start_metrics_updater().await;
     });
 }
@@ -302,24 +273,26 @@ fn post_upgrade() {
 pub async fn upload_model(request: ModelUploadRequest) -> OHMSResult<ModelUploadResponse> {
     let caller_id = caller();
 
-    // Validate input
-    if request.name.is_empty() {
+    if request.name.trim().is_empty() {
         return Err(OHMSError::InvalidInput(
             "Model name cannot be empty".to_string(),
         ));
     }
 
-    if request.data.is_empty() {
+    if request.chunks.is_empty() {
         return Err(OHMSError::InvalidInput(
-            "Model data cannot be empty".to_string(),
+            "Upload must contain at least one chunk".to_string(),
         ));
     }
 
-    // Generate model ID and hash
-    let model_id = generate_model_id(&request.name, caller_id);
-    let sha256_hash = calculate_sha256(&request.data);
+    if request.quantization.artifact_checksum.trim().is_empty() {
+        return Err(OHMSError::InvalidInput(
+            "Quantized artifact checksum is required".to_string(),
+        ));
+    }
 
-    // Check for duplicate models
+    let model_id = generate_model_id(&request.name, caller_id);
+
     if MODELS.with(|models| models.borrow().contains_key(&model_id)) {
         return Err(OHMSError::AlreadyExists(format!(
             "Model {} already exists",
@@ -327,97 +300,142 @@ pub async fn upload_model(request: ModelUploadRequest) -> OHMSResult<ModelUpload
         )));
     }
 
-    // Create model info
+    let mut chunks = request.chunks;
+    let mut seen_ids = HashSet::new();
+    let mut seen_order = HashSet::new();
+    for chunk in &chunks {
+        if chunk.chunk_id.trim().is_empty() {
+            return Err(OHMSError::InvalidInput(
+                "Chunk identifier cannot be empty".to_string(),
+            ));
+        }
+        if !seen_ids.insert(chunk.chunk_id.clone()) {
+            return Err(OHMSError::InvalidInput(format!(
+                "Duplicate chunk id detected: {}",
+                chunk.chunk_id
+            )));
+        }
+        if !seen_order.insert(chunk.order) {
+            return Err(OHMSError::InvalidInput(format!(
+                "Duplicate chunk order detected: {}",
+                chunk.order
+            )));
+        }
+    }
+
+    chunks.sort_by_key(|c| c.order);
+
+    for (expected, chunk) in chunks.iter().enumerate() {
+        if chunk.order != expected as u32 {
+            return Err(OHMSError::InvalidInput(format!(
+                "Chunk {} has non-sequential order {} (expected {})",
+                chunk.chunk_id, chunk.order, expected
+            )));
+        }
+    }
+
+    let mut aggregate_hasher = Sha256::new();
+    let mut total_size_bytes = 0u64;
+    let mut manifest_entries = Vec::with_capacity(chunks.len());
+
+    for chunk in &chunks {
+        if chunk.data.is_empty() {
+            return Err(OHMSError::InvalidInput(format!(
+                "Chunk {} has no data",
+                chunk.chunk_id
+            )));
+        }
+
+        let mut chunk_hasher = Sha256::new();
+        chunk_hasher.update(&chunk.data);
+        let computed = hex::encode(chunk_hasher.finalize());
+        if computed != chunk.sha256 {
+            return Err(OHMSError::InvalidInput(format!(
+                "Chunk {} checksum mismatch: expected {}, computed {}",
+                chunk.chunk_id, chunk.sha256, computed
+            )));
+        }
+
+        aggregate_hasher.update(&chunk.data);
+        let chunk_size = chunk.data.len() as u64;
+        total_size_bytes = total_size_bytes
+            .checked_add(chunk_size)
+            .ok_or_else(|| OHMSError::InvalidInput("Model payload exceeds supported size".into()))?;
+
+        manifest_entries.push(ArtifactChunkInfo {
+            chunk_id: chunk.chunk_id.clone(),
+            offset: total_size_bytes - chunk_size,
+            size_bytes: chunk_size,
+            sha256: chunk.sha256.clone(),
+        });
+    }
+
+    if total_size_bytes == 0 {
+        return Err(OHMSError::InvalidInput(
+            "Model payload cannot be empty".to_string(),
+        ));
+    }
+
+    let computed_checksum = hex::encode(aggregate_hasher.finalize());
+    if computed_checksum != request.quantization.artifact_checksum {
+        return Err(OHMSError::InvalidInput(format!(
+            "Artifact checksum mismatch: expected {}, computed {}",
+            request.quantization.artifact_checksum, computed_checksum
+        )));
+    }
+
+    let mut quantization = request.quantization;
+    quantization.artifact_checksum = computed_checksum.clone();
+    let metadata = request.metadata;
+    let upload_time = current_time_seconds();
+    let chunk_count = manifest_entries.len() as u32;
+
+    let performance_metrics = ModelPerformanceMetrics {
+        inference_count: 0,
+        average_latency_ms: 0.0,
+        tokens_per_second: 0.0,
+        memory_usage_mb: 0.0,
+        cache_hit_ratio: 0.0,
+        last_updated: upload_time,
+    };
+
     let model_info = StorableModelInfo {
         model_id: model_id.clone(),
         name: request.name,
         description: request.description,
         model_type: request.model_type,
-        format: request.format,
         version: request.version,
-        size_bytes: request.data.len() as u64,
-        compressed_size_bytes: None,
-        compression_ratio: None,
-        sha256_hash: sha256_hash.clone(),
-        upload_time: current_time_seconds(),
-        compression_time: None,
+        total_size_bytes,
+        checksum: computed_checksum.clone(),
+        upload_time,
         deployment_time: None,
-        status: ModelStatus::Uploaded,
+        status: ModelStatus::Ready,
         owner: caller_id,
-        metadata: request.metadata,
-        performance_metrics: ModelPerformanceMetrics {
-            inference_count: 0,
-            average_latency_ms: 0.0,
-            tokens_per_second: 0.0,
-            memory_usage_mb: 0.0,
-            cache_hit_ratio: 0.0,
-            last_updated: current_time_seconds(),
-        },
-        novaq_config: request.compression_config.clone(),
+        metadata,
+        quantization,
+        chunk_manifest: manifest_entries.clone(),
+        performance_metrics,
     };
 
-    // Store model
+    let manifest_snapshot = to_model_manifest(&model_info);
+
     MODELS.with(|models| {
         models.borrow_mut().insert(model_id.clone(), model_info);
     });
 
-    // Store model data (in a real implementation, this would use stable storage)
-    store_model_data(&model_id, &request.data).await?;
+    store_uploaded_chunks(&model_id, chunks)?;
 
-    // Start compression if requested
-    let compression_job_id = if let Some(config) = request.compression_config {
-        Some(start_compression_job(model_id.clone(), config, caller_id).await?)
-    } else {
-        None
-    };
-
-    // Update metrics
     update_canister_metrics().await;
 
-    // Notify coordinator
-    notify_coordinator_model_upload(&model_id, &model_info.name).await?;
+    notify_coordinator_model_upload(&manifest_snapshot).await?;
 
     Ok(ModelUploadResponse {
         model_id,
-        upload_time: model_info.upload_time,
-        sha256_hash,
-        size_bytes: model_info.size_bytes,
-        compression_job_id,
+        upload_time,
+        checksum: computed_checksum,
+        total_size_bytes,
+        chunk_count,
     })
-}
-
-#[update]
-#[candid_method(update)]
-pub async fn compress_model(
-    model_id: String,
-    compression_config: CompressionConfig,
-) -> OHMSResult<String> {
-    let caller_id = caller();
-
-    // Validate model exists and caller has permission
-    let model_info = MODELS.with(|models| {
-        models
-            .borrow()
-            .get(&model_id)
-            .ok_or_else(|| OHMSError::NotFound(format!("Model {} not found", model_id)))
-    })?;
-
-    if model_info.owner != caller_id {
-        return Err(OHMSError::Unauthorized(
-            "Only model owner can compress".to_string(),
-        ));
-    }
-
-    if model_info.status == ModelStatus::Compressing {
-        return Err(OHMSError::InvalidState(
-            "Model is already being compressed".to_string(),
-        ));
-    }
-
-    // Start compression job
-    let job_id = start_compression_job(model_id, compression_config, caller_id).await?;
-
-    Ok(job_id)
 }
 
 #[update]
@@ -439,9 +457,9 @@ pub async fn deploy_model(model_id: String) -> OHMSResult<()> {
         ));
     }
 
-    if model_info.status != ModelStatus::Uploaded && model_info.status != ModelStatus::Compressed {
+    if model_info.status != ModelStatus::Ready {
         return Err(OHMSError::InvalidState(
-            "Model must be uploaded or compressed before deployment".to_string(),
+            "Model must be marked ready before deployment".to_string(),
         ));
     }
 
@@ -480,6 +498,8 @@ pub async fn delete_model(model_id: String) -> OHMSResult<()> {
         ));
     }
 
+    let chunk_manifest = model_info.chunk_manifest.clone();
+
     // Update status to deleted
     model_info.status = ModelStatus::Deleted;
 
@@ -488,10 +508,7 @@ pub async fn delete_model(model_id: String) -> OHMSResult<()> {
     });
 
     // Clean up model data
-    delete_model_data(&model_id).await?;
-
-    // Cancel any active compression jobs
-    cancel_compression_jobs_for_model(&model_id).await;
+    delete_model_chunks(&model_id, &chunk_manifest)?;
 
     // Terminate inference sessions
     terminate_inference_sessions_for_model(&model_id).await;
@@ -513,39 +530,70 @@ pub async fn delete_model(model_id: String) -> OHMSResult<()> {
 
 #[query]
 #[candid_method(query)]
-pub fn get_model_info(model_id: String) -> OHMSResult<StorableModelInfo> {
+pub fn get_model_info(model_id: String) -> OHMSResult<ModelInfo> {
     MODELS.with(|models| {
         models
             .borrow()
             .get(&model_id)
+            .filter(|model| model.status != ModelStatus::Deleted)
+            .map(|model| to_model_info(&model))
             .ok_or_else(|| OHMSError::NotFound(format!("Model {} not found", model_id)))
     })
 }
 
 #[query]
 #[candid_method(query)]
-pub fn list_models(owner: Option<Principal>) -> Vec<StorableModelInfo> {
+pub fn list_models(owner: Option<Principal>) -> Vec<ModelInfo> {
     MODELS.with(|models| {
         models
             .borrow()
             .iter()
             .filter_map(|(_, model)| {
-                if model.status != ModelStatus::Deleted {
-                    if let Some(owner_filter) = owner {
-                        if model.owner == owner_filter {
-                            Some(model.clone())
-                        } else {
-                            None
-                        }
-                    } else {
-                        Some(model.clone())
-                    }
-                } else {
-                    None
+                if model.status == ModelStatus::Deleted {
+                    return None;
                 }
+                if let Some(owner_filter) = owner {
+                    if model.owner != owner_filter {
+                        return None;
+                    }
+                }
+                Some(to_model_info(&model))
             })
             .collect()
     })
+}
+
+#[query]
+#[candid_method(query)]
+pub fn list_active_models() -> Vec<ModelInfo> {
+    MODELS.with(|models| {
+        models
+            .borrow()
+            .iter()
+            .filter_map(|(_, model)| match model.status {
+                ModelStatus::Ready | ModelStatus::Deployed => Some(to_model_info(&model)),
+                _ => None,
+            })
+            .collect()
+    })
+}
+
+#[query]
+#[candid_method(query)]
+pub fn get_manifest(model_id: String) -> Option<ModelManifest> {
+    MODELS.with(|models| {
+        models
+            .borrow()
+            .get(&model_id)
+            .filter(|model| model.status != ModelStatus::Deleted)
+            .map(|model| to_model_manifest(&model))
+    })
+}
+
+#[query]
+#[candid_method(query)]
+pub fn get_chunk(model_id: String, chunk_id: String) -> Option<Vec<u8>> {
+    load_chunk_data(&model_id, &chunk_id)
 }
 
 #[query]
@@ -557,37 +605,6 @@ pub fn get_model_status(model_id: String) -> OHMSResult<ModelStatus> {
             .get(&model_id)
             .map(|model| model.status.clone())
             .ok_or_else(|| OHMSError::NotFound(format!("Model {} not found", model_id)))
-    })
-}
-
-#[query]
-#[candid_method(query)]
-pub fn get_compression_job_status(job_id: String) -> OHMSResult<CompressionJob> {
-    COMPRESSION_JOBS.with(|jobs| {
-        jobs.borrow()
-            .get(&job_id)
-            .ok_or_else(|| OHMSError::NotFound(format!("Compression job {} not found", job_id)))
-    })
-}
-
-#[query]
-#[candid_method(query)]
-pub fn list_compression_jobs(model_id: Option<String>) -> Vec<CompressionJob> {
-    COMPRESSION_JOBS.with(|jobs| {
-        jobs.borrow()
-            .iter()
-            .filter_map(|(_, job)| {
-                if let Some(model_filter) = &model_id {
-                    if &job.model_id == model_filter {
-                        Some(job.clone())
-                    } else {
-                        None
-                    }
-                } else {
-                    Some(job.clone())
-                }
-            })
-            .collect()
     })
 }
 
@@ -616,11 +633,11 @@ pub async fn run_inference(request: InferenceRequest) -> OHMSResult<InferenceRes
     }
 
     // Get or create inference session
-    let session_id = if let Some(existing_session_id) = request.session_id {
-        validate_and_update_session(&existing_session_id, caller_id).await?;
-        existing_session_id
+    let session_id = if let Some(existing_session_id) = request.session_id.as_ref() {
+        validate_and_update_session(existing_session_id, caller_id).await?;
+        existing_session_id.clone()
     } else {
-        create_inference_session(&request.model_id, caller_id).await?
+        create_inference_session(request.model_id.clone(), caller_id).await?
     };
 
     // Run inference (simplified implementation)
@@ -647,12 +664,12 @@ pub async fn run_inference(request: InferenceRequest) -> OHMSResult<InferenceRes
 
 #[update]
 #[candid_method(update)]
-pub async fn create_inference_session(model_id: &str, requester: Principal) -> OHMSResult<String> {
-    let session_id = generate_session_id(model_id, requester);
+pub async fn create_inference_session(model_id: String, requester: Principal) -> OHMSResult<String> {
+    let session_id = generate_session_id(&model_id, requester);
 
     let session = InferenceSession {
         session_id: session_id.clone(),
-        model_id: model_id.to_string(),
+        model_id: model_id.clone(),
         requester,
         start_time: current_time_seconds(),
         last_activity: current_time_seconds(),
@@ -703,8 +720,18 @@ pub async fn terminate_inference_session(session_id: String) -> OHMSResult<()> {
 #[query]
 #[candid_method(query)]
 pub fn health_check() -> SystemHealth {
-    let model_count = MODELS.with(|models| models.borrow().len());
-    let job_count = COMPRESSION_JOBS.with(|jobs| jobs.borrow().len());
+    let (model_count, chunk_count) = MODELS.with(|models| {
+        let mut active_models = 0usize;
+        let mut total_chunks = 0usize;
+        for (_, model) in models.borrow().iter() {
+            if model.status != ModelStatus::Deleted {
+                active_models += 1;
+                total_chunks += model.chunk_manifest.len();
+            }
+        }
+        (active_models, total_chunks)
+    });
+
     let session_count = INFERENCE_SESSIONS.with(|sessions| sessions.borrow().len());
 
     let memory_usage = (api::instruction_counter() / 1_000_000) as f32;
@@ -726,7 +753,7 @@ pub fn health_check() -> SystemHealth {
         metrics: {
             let mut metrics = HashMap::new();
             metrics.insert("models".to_string(), model_count.to_string());
-            metrics.insert("compression_jobs".to_string(), job_count.to_string());
+            metrics.insert("chunks".to_string(), chunk_count.to_string());
             metrics.insert("inference_sessions".to_string(), session_count.to_string());
             metrics
         },
@@ -747,20 +774,15 @@ async fn register_with_coordinator() {
     let coordinator_id = get_coordinator_canister_id();
 
     if let Some(coordinator) = coordinator_id {
+        let now = current_time_seconds();
         let canister_info = CanisterInfo {
             canister_id: id(),
-            canister_type: "model".to_string(),
-            name: "OHMS Model Canister".to_string(),
+            canister_type: CanisterType::ModelRepository,
             version: env!("CARGO_PKG_VERSION").to_string(),
-            health: ComponentHealth::Healthy,
-            metadata: {
-                let mut metadata = HashMap::new();
-                metadata.insert(
-                    "model_count".to_string(),
-                    MODELS.with(|models| models.borrow().len().to_string()),
-                );
-                metadata
-            },
+            status: CanisterStatus::Healthy,
+            registered_at: now,
+            last_health_check: now,
+            health_score: 1.0,
         };
 
         let result: CallResult<(OHMSResult<()>,)> =
@@ -772,11 +794,6 @@ async fn register_with_coordinator() {
             Err(e) => ic_cdk::println!("Call to coordinator failed: {:?}", e),
         }
     }
-}
-
-async fn start_compression_worker() {
-    // Background task to process compression jobs
-    ic_cdk::println!("Compression worker started");
 }
 
 async fn start_metrics_updater() {
@@ -793,153 +810,87 @@ fn generate_model_id(name: &str, owner: Principal) -> String {
     format!("model_{}", hex::encode(&hash[..8]))
 }
 
-fn calculate_sha256(data: &[u8]) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(data);
-    hex::encode(hasher.finalize())
+fn chunk_storage_key(model_id: &str, chunk_id: &str) -> String {
+    format!("{}::{}", model_id, chunk_id)
 }
 
-async fn store_model_data(model_id: &str, data: &[u8]) -> OHMSResult<()> {
-    // In a real implementation, this would store data in stable storage
-    // For now, we'll just validate the data can be stored
-    if data.len() > 100_000_000 {
-        // 100MB limit
-        return Err(OHMSError::ResourceExhausted("Model too large".to_string()));
-    }
-
-    ic_cdk::println!("Model data stored: {} ({} bytes)", model_id, data.len());
+fn store_uploaded_chunks(model_id: &str, chunks: Vec<ArtifactChunkUpload>) -> OHMSResult<()> {
+    CHUNKS.with(|store| {
+        let mut storage = store.borrow_mut();
+        for chunk in chunks {
+            let key = chunk_storage_key(model_id, &chunk.chunk_id);
+            storage.insert(
+                key,
+                StoredChunk {
+                    model_id: model_id.to_string(),
+                    chunk_id: chunk.chunk_id,
+                    sha256: chunk.sha256,
+                    data: chunk.data,
+                },
+            );
+        }
+    });
     Ok(())
 }
 
-async fn delete_model_data(model_id: &str) -> OHMSResult<()> {
-    // Delete model data from storage
-    ic_cdk::println!("Model data deleted: {}", model_id);
+fn delete_model_chunks(model_id: &str, manifest: &[ArtifactChunkInfo]) -> OHMSResult<()> {
+    CHUNKS.with(|store| {
+        let mut storage = store.borrow_mut();
+        for chunk in manifest {
+            let key = chunk_storage_key(model_id, &chunk.chunk_id);
+            storage.remove(&key);
+        }
+    });
     Ok(())
 }
 
-async fn start_compression_job(
-    model_id: String,
-    config: CompressionConfig,
-    requester: Principal,
-) -> OHMSResult<String> {
-    let job_id = generate_job_id(&model_id);
-
-    let job = CompressionJob {
-        job_id: job_id.clone(),
-        model_id: model_id.clone(),
-        compression_config: config,
-        status: CompressionStatus::Queued,
-        progress_percent: 0.0,
-        start_time: current_time_seconds(),
-        completion_time: None,
-        result: None,
-        error_message: None,
-        requester,
-    };
-
-    COMPRESSION_JOBS.with(|jobs| {
-        jobs.borrow_mut().insert(job_id.clone(), job);
-    });
-
-    // Update model status
-    MODELS.with(|models| {
-        if let Some(mut model_info) = models.borrow_mut().get(&model_id) {
-            model_info.status = ModelStatus::Compressing;
-            models.borrow_mut().insert(model_id, model_info);
-        }
-    });
-
-    // Start compression asynchronously
-    ic_cdk::spawn({
-        let job_id_clone = job_id.clone();
-        let model_id_clone = model_id.clone();
-        async move {
-            process_compression_job(job_id_clone, model_id_clone).await;
-        }
-    });
-
-    Ok(job_id)
-}
-
-async fn process_compression_job(job_id: String, model_id: String) {
-    // Simulate compression work
-    let compression_result = simulate_novaq_compression(&model_id).await;
-
-    // Update job status
-    COMPRESSION_JOBS.with(|jobs| {
-        if let Some(mut job) = jobs.borrow_mut().get(&job_id) {
-            match compression_result {
-                Ok(result) => {
-                    job.status = CompressionStatus::Completed;
-                    job.progress_percent = 100.0;
-                    job.completion_time = Some(current_time_seconds());
-                    job.result = Some(result.clone());
-
-                    // Update model with compression results
-                    MODELS.with(|models| {
-                        if let Some(mut model_info) = models.borrow_mut().get(&model_id) {
-                            model_info.status = ModelStatus::Compressed;
-                            model_info.compressed_size_bytes = Some(result.compressed_size);
-                            model_info.compression_ratio = Some(result.compression_ratio);
-                            model_info.compression_time = Some(current_time_seconds());
-                            models.borrow_mut().insert(model_id.clone(), model_info);
-                        }
-                    });
-                }
-                Err(e) => {
-                    job.status = CompressionStatus::Failed;
-                    job.error_message = Some(format!("{:?}", e));
-
-                    // Update model status
-                    MODELS.with(|models| {
-                        if let Some(mut model_info) = models.borrow_mut().get(&model_id) {
-                            model_info.status = ModelStatus::Failed;
-                            models.borrow_mut().insert(model_id.clone(), model_info);
-                        }
-                    });
-                }
-            }
-
-            jobs.borrow_mut().insert(job_id.clone(), job);
-        }
-    });
-}
-
-async fn simulate_novaq_compression(model_id: &str) -> OHMSResult<CompressionResult> {
-    // Get model data size
-    let key = model_id.to_string();
-    let original_size = MODELS.with(|models| {
-        models
+fn load_chunk_data(model_id: &str, chunk_id: &str) -> Option<Vec<u8>> {
+    CHUNKS.with(|store| {
+        store
             .borrow()
-            .get(&key)
-            .map(|model| model.size_bytes)
-            .unwrap_or(0)
-    });
-
-    if original_size == 0 {
-        return Err(OHMSError::NotFound("Model not found".to_string()));
-    }
-
-    // Simulate compression with realistic ratios
-    let compression_ratio = 0.3 + (fastrand::f32() * 0.4); // 30-70% compression
-    let compressed_size = (original_size as f32 * compression_ratio) as u64;
-
-    Ok(CompressionResult {
-        original_size,
-        compressed_size,
-        compression_ratio: 1.0 - compression_ratio,
-        compression_time_ms: 5000 + fastrand::u64(0..10000), // 5-15 seconds
-        algorithm_used: "NOVAQ".to_string(),
-        quality_metrics: HashMap::new(),
+            .get(&chunk_storage_key(model_id, chunk_id))
+            .map(|chunk| chunk.data.clone())
     })
 }
 
-fn generate_job_id(model_id: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(model_id.as_bytes());
-    hasher.update(current_time_millis().to_be_bytes());
-    let hash = hasher.finalize();
-    format!("job_{}", hex::encode(&hash[..8]))
+fn map_status_to_state(status: &ModelStatus) -> ModelState {
+    match status {
+        ModelStatus::Deployed => ModelState::Active,
+        ModelStatus::Ready => ModelState::Pending,
+        ModelStatus::Uploading => ModelState::Pending,
+        ModelStatus::Failed => ModelState::Deprecated,
+        ModelStatus::Deleted => ModelState::Deprecated,
+    }
+}
+
+fn to_model_info(model: &StorableModelInfo) -> ModelInfo {
+    ModelInfo {
+        model_id: model.model_id.clone(),
+        version: model.version.clone(),
+        state: map_status_to_state(&model.status),
+        quantization_format: model.quantization.format.clone(),
+        compression_ratio: Some(model.quantization.compression_ratio),
+        accuracy_retention: Some(model.quantization.accuracy_retention),
+        size_bytes: model.total_size_bytes,
+        uploaded_at: model.upload_time,
+        activated_at: model.deployment_time,
+    }
+}
+
+fn to_model_manifest(model: &StorableModelInfo) -> ModelManifest {
+    ModelManifest {
+        model_id: model.model_id.clone(),
+        version: model.version.clone(),
+        state: map_status_to_state(&model.status),
+        uploaded_at: model.upload_time,
+        activated_at: model.deployment_time,
+        total_size_bytes: model.total_size_bytes,
+        chunk_count: model.chunk_manifest.len() as u32,
+        checksum: model.checksum.clone(),
+        quantization: model.quantization.clone(),
+        metadata: model.metadata.clone(),
+        chunks: model.chunk_manifest.clone(),
+    }
 }
 
 fn generate_session_id(model_id: &str, requester: Principal) -> String {
@@ -985,7 +936,7 @@ async fn validate_and_update_session(session_id: &str, requester: Principal) -> 
 async fn perform_model_inference(
     model_id: &str,
     input_data: &[u8],
-    request: &InferenceRequest,
+    _request: &InferenceRequest,
 ) -> OHMSResult<Vec<u8>> {
     // Simplified inference simulation
     let output_size = input_data.len() + 100; // Simulate output generation
@@ -995,6 +946,19 @@ async fn perform_model_inference(
     let mut hasher = Sha256::new();
     hasher.update(model_id.as_bytes());
     hasher.update(input_data);
+
+    if let Some(first_chunk_id) = MODELS.with(|models| {
+        let key = model_id.to_string();
+        models
+            .borrow()
+            .get(&key)
+            .and_then(|model| model.chunk_manifest.first().map(|chunk| chunk.chunk_id.clone()))
+    }) {
+        if let Some(chunk_bytes) = load_chunk_data(model_id, &first_chunk_id) {
+            hasher.update(&chunk_bytes);
+        }
+    }
+
     let hash = hasher.finalize();
 
     for (i, byte) in output.iter_mut().enumerate() {
@@ -1048,26 +1012,6 @@ fn estimate_tokens(data: &[u8]) -> u32 {
     (data.len() / 4) as u32
 }
 
-async fn cancel_compression_jobs_for_model(model_id: &str) {
-    COMPRESSION_JOBS.with(|jobs| {
-        let mut updates = Vec::new();
-
-        for (job_id, mut job) in jobs.borrow_mut().iter() {
-            if job.model_id == model_id
-                && (job.status == CompressionStatus::Queued
-                    || job.status == CompressionStatus::InProgress)
-            {
-                job.status = CompressionStatus::Cancelled;
-                updates.push((job_id.clone(), job.clone()));
-            }
-        }
-
-        for (job_id, job) in updates {
-            jobs.borrow_mut().insert(job_id, job);
-        }
-    });
-}
-
 async fn terminate_inference_sessions_for_model(model_id: &str) {
     INFERENCE_SESSIONS.with(|sessions| {
         let mut updates = Vec::new();
@@ -1087,33 +1031,32 @@ async fn terminate_inference_sessions_for_model(model_id: &str) {
 
 async fn update_canister_metrics() {
     let mut total_models = 0u32;
-    let mut compressed_models = 0u32;
+    let mut ready_models = 0u32;
     let mut deployed_models = 0u32;
+    let mut deleted_models = 0u32;
     let mut total_storage_bytes = 0u64;
-    let mut compression_savings_bytes = 0u64;
-    let mut compression_ratios = Vec::new();
+    let mut total_chunks = 0u64;
 
     MODELS.with(|models| {
         for (_, model) in models.borrow().iter() {
-            if model.status != ModelStatus::Deleted {
-                total_models += 1;
-                total_storage_bytes += model.size_bytes;
-
-                if model.status == ModelStatus::Compressed || model.status == ModelStatus::Deployed
-                {
-                    compressed_models += 1;
-
-                    if let Some(compressed_size) = model.compressed_size_bytes {
-                        compression_savings_bytes += model.size_bytes - compressed_size;
-                    }
-
-                    if let Some(ratio) = model.compression_ratio {
-                        compression_ratios.push(ratio);
-                    }
+            match model.status {
+                ModelStatus::Deleted => {
+                    deleted_models += 1;
                 }
+                _ => {
+                    total_models += 1;
+                    total_storage_bytes = total_storage_bytes.saturating_add(model.total_size_bytes);
+                    total_chunks = total_chunks.saturating_add(model.chunk_manifest.len() as u64);
 
-                if model.status == ModelStatus::Deployed {
-                    deployed_models += 1;
+                    match model.status {
+                        ModelStatus::Ready => ready_models += 1,
+                        ModelStatus::Deployed => {
+                            ready_models += 1;
+                            deployed_models += 1;
+                        }
+                        ModelStatus::Uploading | ModelStatus::Failed => {}
+                        ModelStatus::Deleted => unreachable!(),
+                    }
                 }
             }
         }
@@ -1127,60 +1070,33 @@ async fn update_canister_metrics() {
             .count() as u32
     });
 
-    let (total_jobs, successful_jobs, failed_jobs) = COMPRESSION_JOBS.with(|jobs| {
-        let mut total = 0u32;
-        let mut successful = 0u32;
-        let mut failed = 0u32;
-
-        for (_, job) in jobs.borrow().iter() {
-            total += 1;
-            match job.status {
-                CompressionStatus::Completed => successful += 1,
-                CompressionStatus::Failed => failed += 1,
-                _ => {}
-            }
-        }
-
-        (total, successful, failed)
-    });
-
-    let average_compression_ratio = if !compression_ratios.is_empty() {
-        compression_ratios.iter().sum::<f32>() / compression_ratios.len() as f32
-    } else {
-        0.0
-    };
-
     SYSTEM_METRICS.with(|metrics| {
         let mut m = metrics.borrow_mut();
         m.total_models = total_models;
-        m.compressed_models = compressed_models;
+        m.ready_models = ready_models;
         m.deployed_models = deployed_models;
+        m.deleted_models = deleted_models;
+        m.total_chunks = total_chunks;
         m.active_inference_sessions = active_sessions;
-        m.total_compression_jobs = total_jobs;
-        m.successful_compressions = successful_jobs;
-        m.failed_compressions = failed_jobs;
         m.total_storage_used_bytes = total_storage_bytes;
-        m.compression_savings_bytes = compression_savings_bytes;
-        m.average_compression_ratio = average_compression_ratio;
         m.last_updated = current_time_seconds();
     });
 }
 
-async fn notify_coordinator_model_upload(model_id: &str, model_name: &str) -> OHMSResult<()> {
+async fn notify_coordinator_model_upload(manifest: &ModelManifest) -> OHMSResult<()> {
     if let Some(coordinator_id) = get_coordinator_canister_id() {
-        let result: CallResult<(OHMSResult<()>,)> = call(
-            coordinator_id,
-            "notify_model_upload",
-            (model_id.to_string(), model_name.to_string()),
-        )
-        .await;
+        let result: CallResult<(Result<(), String>,)> =
+            call(coordinator_id, "notify_model_upload", (manifest.clone(),)).await;
 
         match result {
             Ok((Ok(()),)) => Ok(()),
-            Ok((Err(e),)) => Err(e),
+            Ok((Err(err),)) => Err(OHMSError::CommunicationFailed(format!(
+                "Coordinator rejected model {} registration: {}",
+                manifest.model_id, err
+            ))),
             Err(e) => Err(OHMSError::CommunicationFailed(format!(
-                "Coordinator call failed: {:?}",
-                e
+                "Coordinator upload notification failed for {}: {:?}",
+                manifest.model_id, e
             ))),
         }
     } else {
@@ -1190,7 +1106,7 @@ async fn notify_coordinator_model_upload(model_id: &str, model_name: &str) -> OH
 
 async fn notify_coordinator_model_deletion(model_id: &str) -> OHMSResult<()> {
     if let Some(coordinator_id) = get_coordinator_canister_id() {
-        let result: CallResult<(OHMSResult<()>,)> = call(
+        let result: CallResult<(Result<(), String>,)> = call(
             coordinator_id,
             "notify_model_deletion",
             (model_id.to_string(),),
@@ -1199,7 +1115,10 @@ async fn notify_coordinator_model_deletion(model_id: &str) -> OHMSResult<()> {
 
         match result {
             Ok((Ok(()),)) => Ok(()),
-            Ok((Err(e),)) => Err(e),
+            Ok((Err(err),)) => Err(OHMSError::CommunicationFailed(format!(
+                "Coordinator deletion notification failed for {}: {}",
+                model_id, err
+            ))),
             Err(e) => Err(OHMSError::CommunicationFailed(format!(
                 "Coordinator call failed: {:?}",
                 e
@@ -1211,8 +1130,10 @@ async fn notify_coordinator_model_deletion(model_id: &str) -> OHMSResult<()> {
 }
 
 fn get_coordinator_canister_id() -> Option<Principal> {
-    // In a real implementation, this would read from environment or config
-    // For now, return None to indicate no coordinator is configured
+    if let Some(configured) = option_env!("OHMS_COORDINATOR_CANISTER_ID") {
+        return Principal::from_text(configured).ok();
+    }
+
     None
 }
 
@@ -1222,4 +1143,15 @@ candid::export_service!();
 #[query(name = "__get_candid_interface_tmp_hack")]
 fn export_candid() -> String {
     __export_service()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::export_candid;
+
+    #[test]
+    fn generate_candid() {
+        let did = export_candid();
+        std::fs::write("src/ohms_model.did", did).expect("failed to write Candid interface");
+    }
 }

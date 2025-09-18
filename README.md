@@ -513,6 +513,7 @@ novaq submit-to-ohms compressed-model.bin --platform-url https://xg5yr-zaaaa-aaa
 - **[System Diagrams](./docs/system-architecture-diagrams.md)** - Visual architecture flows
 
 ### Technical Documentation
+- **[Repository Guidelines](./AGENTS.md)** - Contributor workflow and standards
 - **[NOVAQ Technology](./docs/novaq.md)** - Compression engine documentation
 - **[Authentication Architecture](./docs/principal-authentication-architecture.md)** - II v2 integration
 - **[User Profile System](./docs/user-profile-system-specification.md)** - Profile management

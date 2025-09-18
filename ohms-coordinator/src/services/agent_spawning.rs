@@ -1,6 +1,7 @@
 use crate::domain::*;
-use crate::services::{with_state, with_state_mut, InstructionAnalyzerService};
+use crate::services::{with_state, with_state_mut, InstructionAnalyzerService, RegistryService};
 use ic_cdk::api::time;
+use ohms_shared::ModelManifest;
 
 /// Agent spawning coordination service for OHMS 2.0
 pub struct AgentSpawningService;
@@ -32,6 +33,7 @@ pub struct SpawnedAgent {
     pub canister_id: String,
     pub specialization: String,
     pub model_id: String,
+    pub model_manifest: ModelManifest,
     pub capabilities: Vec<String>,
     pub status: AgentStatus,
 }
@@ -142,13 +144,24 @@ impl AgentSpawningService {
         // Generate unique agent ID
         let agent_id = format!("agent_{}_{}_{}", user_principal, spec.agent_type, time());
 
+        let selected_model = RegistryService::select_model_for_requirements(&spec.model_requirements)
+            .ok_or_else(|| {
+                format!(
+                    "No registered model satisfies requirements {:?}",
+                    spec.model_requirements
+                )
+            })?;
+
+        let model_id = selected_model.manifest.model_id.clone();
+
         // Prepare agent creation parameters
         let agent_config = AgentCreationConfig {
             agent_id: agent_id.clone(),
             user_principal: user_principal.to_string(),
             specialization: spec.specialization.clone(),
             capabilities: spec.required_capabilities.clone(),
-            model_requirements: spec.model_requirements.clone(),
+            model_id: model_id.clone(),
+            model_manifest: selected_model.manifest.clone(),
             agent_type: spec.agent_type.clone(),
         };
 
@@ -169,11 +182,8 @@ impl AgentSpawningService {
             agent_id,
             canister_id,
             specialization: spec.specialization.clone(),
-            model_id: spec
-                .model_requirements
-                .first()
-                .unwrap_or(&"llama".to_string())
-                .clone(),
+            model_id,
+            model_manifest: selected_model.manifest.clone(),
             capabilities: spec.required_capabilities.clone(),
             status: AgentStatus::Initializing,
         })
@@ -200,11 +210,7 @@ impl AgentSpawningService {
             agent_principal: config.user_principal.clone(),
             canister_id: agent_canister_id.clone(),
             capabilities: config.capabilities.clone(),
-            model_id: config
-                .model_requirements
-                .first()
-                .unwrap_or(&"llama".to_string())
-                .clone(),
+            model_id: config.model_id.clone(),
             health_score: 1.0,
             registered_at: time(),
             last_seen: time(),
@@ -215,6 +221,8 @@ impl AgentSpawningService {
             state
                 .agents
                 .insert(config.agent_id.clone(), agent_registration);
+            state.metrics.total_agents = state.agents.len() as u64;
+            state.metrics.last_activity = time();
         });
 
         Ok(AgentCreationCallResult {
@@ -400,13 +408,15 @@ pub struct AgentCreationConfig {
     pub user_principal: String,
     pub specialization: String,
     pub capabilities: Vec<String>,
-    pub model_requirements: Vec<String>,
+    pub model_id: String,
+    pub model_manifest: ModelManifest,
     pub agent_type: String,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ohms_shared::{ModelManifest, ModelState, QuantizationFormat, QuantizedArtifactMetadata};
 
     #[test]
     fn test_determine_spawning_status() {
@@ -416,6 +426,7 @@ mod tests {
                 canister_id: "canister1".to_string(),
                 specialization: "Developer".to_string(),
                 model_id: "llama".to_string(),
+                model_manifest: sample_manifest("llama"),
                 capabilities: vec!["coding".to_string()],
                 status: AgentStatus::Ready,
             },
@@ -424,6 +435,7 @@ mod tests {
                 canister_id: "canister2".to_string(),
                 specialization: "Tester".to_string(),
                 model_id: "llama".to_string(),
+                model_manifest: sample_manifest("llama"),
                 capabilities: vec!["testing".to_string()],
                 status: AgentStatus::Ready,
             },
@@ -441,6 +453,7 @@ mod tests {
                 canister_id: "canister1".to_string(),
                 specialization: "Developer".to_string(),
                 model_id: "llama".to_string(),
+                model_manifest: sample_manifest("llama"),
                 capabilities: vec!["coding".to_string()],
                 status: AgentStatus::Ready,
             },
@@ -449,6 +462,7 @@ mod tests {
                 canister_id: "canister2".to_string(),
                 specialization: "Tester".to_string(),
                 model_id: "llama".to_string(),
+                model_manifest: sample_manifest("llama"),
                 capabilities: vec!["testing".to_string()],
                 status: AgentStatus::Error,
             },
@@ -456,5 +470,28 @@ mod tests {
 
         let status = AgentSpawningService::determine_spawning_status(&agents);
         assert_eq!(status, SpawningStatus::PartialSuccess);
+    }
+
+    fn sample_manifest(model_id: &str) -> ModelManifest {
+        ModelManifest {
+            model_id: model_id.to_string(),
+            version: "1.0.0".to_string(),
+            state: ModelState::Active,
+            uploaded_at: 0,
+            activated_at: Some(0),
+            total_size_bytes: 1,
+            chunk_count: 1,
+            checksum: "test".to_string(),
+            quantization: QuantizedArtifactMetadata {
+                format: QuantizationFormat::NOVAQ,
+                artifact_checksum: "test".to_string(),
+                compression_ratio: 1.0,
+                accuracy_retention: 1.0,
+                bits_per_weight: None,
+                notes: None,
+            },
+            metadata: std::collections::HashMap::new(),
+            chunks: Vec::new(),
+        }
     }
 }

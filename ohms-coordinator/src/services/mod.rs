@@ -28,6 +28,7 @@ thread_local! {
 #[derive(Debug, Default)]
 pub struct CoordinatorState {
     pub agents: HashMap<String, AgentRegistration>,
+    pub models: HashMap<String, RegisteredModel>,
     pub instruction_requests: HashMap<String, InstructionRequest>,
     pub agent_creation_results: HashMap<String, AgentCreationResult>,
     pub dedup_cache: HashMap<String, DedupEntry>,
@@ -47,6 +48,8 @@ pub struct CoordinatorMetrics {
     pub total_routes: u64,
     pub total_agent_creations: u64,
     pub total_agents: u64,
+    pub total_models: u32,
+    pub ready_models: u32,
     pub average_routing_time_ms: f64,
     pub last_activity: u64,
 }

@@ -5,8 +5,6 @@ use super::{
     with_state, with_state_mut, CacheService, MemoryService, ModelBindingState, ModelRepoClient,
 };
 
-const DEFAULT_CHUNK_SIZE: u64 = 512 * 1024; // 512 KiB chunks when estimating warm set progress
-
 pub struct BindingService;
 
 impl BindingService {
@@ -41,14 +39,27 @@ impl BindingService {
             .await
             .map_err(|e| format!("failed to fetch model metadata: {e}"))?;
 
-        let total_chunks =
-            ((model_info.size_bytes + DEFAULT_CHUNK_SIZE - 1) / DEFAULT_CHUNK_SIZE) as u32;
+        let manifest = client
+            .get_manifest(&model_id)
+            .await
+            .map_err(|e| format!("failed to fetch model manifest: {e}"))?;
+
+        if model_info.model_id != model_id {
+            return Err(format!(
+                "model repository returned mismatched metadata: requested {}, got {}",
+                model_id, model_info.model_id
+            ));
+        }
+
+        if manifest.quantization.format != model_info.quantization_format {
+            return Err(format!(
+                "quantization format mismatch for {}: manifest {:?}, info {:?}",
+                model_id, manifest.quantization.format, model_info.quantization_format
+            ));
+        }
 
         with_state_mut(|state| {
-            state.binding = Some(ModelBindingState::new(
-                model_id.clone(),
-                total_chunks.max(1),
-            ));
+            state.binding = Some(ModelBindingState::new(manifest.clone()));
             CacheService::clear_all(state);
         });
 

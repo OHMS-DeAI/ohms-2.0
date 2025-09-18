@@ -2559,16 +2559,16 @@ dependencies = [
 name = "ohms-model"
 version = "1.0.0"
 dependencies = [
+ "anyhow",
  "bincode",
  "candid",
- "fastrand",
  "hex",
  "ic-cdk 0.15.2",
  "ic-cdk-macros 0.15.0",
  "ic-stable-structures",
- "ohms-adaptq",
  "ohms-shared",
  "serde",
+ "serde_bytes",
  "serde_json",
  "sha2",
 ]
@@ -2600,7 +2600,7 @@ dependencies = [
  "ic-llm",
  "ic-stable-structures",
  "log",
- "ohms-adaptq",
+ "ohms-shared",
  "rand_chacha 0.3.1",
  "serde",
  "serde_cbor",
@@ -2621,6 +2621,7 @@ dependencies = [
  "ic-cdk-macros 0.15.0",
  "ic-stable-structures",
  "log",
+ "ohms-shared",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "serde",

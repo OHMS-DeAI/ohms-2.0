@@ -3,9 +3,10 @@
 
 use candid::{CandidType, Principal};
 use ic_cdk::api::call::{call, CallResult};
+use std::collections::HashMap;
 use crate::{
-    AgentInfo, ComponentHealth, IntercanisterMessage, IntercanisterResponse, JobCost, ModelInfo,
-    OHMSError, OHMSResult, SystemHealth,
+    registry::{self, CanisterType},
+    AgentInfo, ComponentHealth, JobCost, ModelInfo, OHMSError, OHMSResult, SystemHealth,
 };
 use serde::{Deserialize, Serialize};
 
@@ -23,14 +24,41 @@ pub struct CanisterIds {
 
 impl CanisterIds {
     pub fn from_env() -> OHMSResult<Self> {
-        // In production, these would be read from environment or canister registry
-        // For now, we'll use placeholder values that will be replaced during deployment
-        Ok(CanisterIds {
-            model: Principal::anonymous(), // Will be replaced with actual Principal
-            agent: Principal::anonymous(),
-            coordinator: Principal::anonymous(),
-            econ: Principal::anonymous(),
-        })
+        if registry::with_canister_registry(|_| ()).is_err() {
+            registry::init_canister_registry()?;
+        }
+
+        registry::with_canister_registry(|registry| {
+            let model = registry
+                .get_canister_by_type(&CanisterType::ModelRepository)
+                .ok_or_else(|| {
+                    OHMSError::NotFound(
+                        "Model repository canister not registered".to_string(),
+                    )
+                })?;
+            let agent = registry
+                .get_canister_by_type(&CanisterType::AgentFactory)
+                .ok_or_else(|| {
+                    OHMSError::NotFound("Agent canister not registered".to_string())
+                })?;
+            let coordinator = registry
+                .get_canister_by_type(&CanisterType::Coordinator)
+                .ok_or_else(|| {
+                    OHMSError::NotFound("Coordinator canister not registered".to_string())
+                })?;
+            let econ = registry
+                .get_canister_by_type(&CanisterType::Economics)
+                .ok_or_else(|| {
+                    OHMSError::NotFound("Economics canister not registered".to_string())
+                })?;
+
+            Ok(CanisterIds {
+                model,
+                agent,
+                coordinator,
+                econ,
+            })
+        })?
     }
 }
 
@@ -311,6 +339,8 @@ impl OHMSClient {
     }
 
     pub async fn system_health_check(&self) -> SystemHealth {
+        let generated_at = crate::current_time_seconds();
+
         let (model_health, agent_health, coordinator_health, econ_health) = futures::join!(
             self.model.health_check(),
             self.agent.health_check(),
@@ -318,12 +348,49 @@ impl OHMSClient {
             self.econ.health_check()
         );
 
+        let mut metrics: HashMap<String, String> = HashMap::new();
+        let mut statuses = Vec::with_capacity(4);
+
+        let mut record_status = |label: &str, result: &Result<ComponentHealth, OHMSError>| {
+            match result {
+                Ok(status) => {
+                    metrics.insert(
+                        format!("{}.status", label),
+                        format!("{:?}", status),
+                    );
+                    statuses.push(status.clone());
+                }
+                Err(err) => {
+                    metrics.insert(format!("{}.status", label), "Unhealthy".to_string());
+                    metrics.insert(format!("{}.error", label), err.to_string());
+                    statuses.push(ComponentHealth::Unhealthy);
+                }
+            }
+        };
+
+        record_status("model", &model_health);
+        record_status("agent", &agent_health);
+        record_status("coordinator", &coordinator_health);
+        record_status("econ", &econ_health);
+
+        let aggregate_status = statuses
+            .into_iter()
+            .max_by_key(|status| match status {
+                ComponentHealth::Healthy => 0,
+                ComponentHealth::Degraded => 1,
+                ComponentHealth::Unknown => 2,
+                ComponentHealth::Unhealthy => 3,
+            })
+            .unwrap_or(ComponentHealth::Unknown);
+
         SystemHealth {
-            model: model_health.unwrap_or(ComponentHealth::Unknown),
-            agent: agent_health.unwrap_or(ComponentHealth::Unknown),
-            coordinator: coordinator_health.unwrap_or(ComponentHealth::Unknown),
-            econ: econ_health.unwrap_or(ComponentHealth::Unknown),
-            timestamp: crate::current_time_seconds(),
+            canister_id: Principal::anonymous(),
+            status: aggregate_status,
+            uptime_seconds: 0,
+            memory_usage_mb: 0.0,
+            last_update: generated_at,
+            version: "aggregate".to_string(),
+            metrics,
         }
     }
 

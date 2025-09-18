@@ -53,6 +53,7 @@ interface AgentContextType {
   // LLM functionality
   llmState: LlmState
   createLlmConversation: (model: QuantizedModel) => Promise<ConversationSession>
+  selectLlmConversation: (sessionId: string) => void
   sendLlmMessage: (message: string) => Promise<void>
   switchLlmModel: (model: QuantizedModel) => Promise<void>
   deleteLlmConversation: (sessionId: string) => Promise<void>
@@ -60,10 +61,10 @@ interface AgentContextType {
 
 interface AdminData {
   health: {
-    model: any
-    agent: any
-    coordinator: any
-    econ: any
+    model: any | null
+    agent: any | null
+    coordinator: any | null
+    econ: any | null
   } | null
   modelStats: {
     total: number
@@ -351,6 +352,17 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({ children }) => {
     }
   }
 
+  const selectLlmConversation = (sessionId: string): void => {
+    const llmServiceInstance = getLlmService()
+    const selected = llmServiceInstance.selectConversation(sessionId)
+    const snapshot = llmServiceInstance.getState()
+    setLlmState({
+      ...snapshot,
+      conversations: new Map(snapshot.conversations),
+      currentConversation: selected,
+    })
+  }
+
   const switchLlmModel = async (model: QuantizedModel): Promise<void> => {
     try {
       if (llmState.currentConversation) {
@@ -472,14 +484,19 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({ children }) => {
       const coordinatorActor = createCoordinatorActor(authAgent as any)
       const econActor = createEconActor(authAgent as any)
       
-      const [models, agentHealth, coordinatorHealth, econHealth] = await Promise.all([
+      const [modelsResult, agentHealthResult, coordinatorHealthResult, econHealthResult, modelHealthResult] = await Promise.allSettled([
         modelActor.list_models([]),
         agentActor.health(),
-        coordinatorActor.health(), 
-        econActor.health()
+        coordinatorActor.health(),
+        econActor.health(),
+        (modelActor as any).health_check?.() ?? Promise.resolve(null)
       ])
-      
-      const modelList = models as any[]
+
+      const modelList = modelsResult.status === 'fulfilled' ? (modelsResult.value as any[]) : []
+      const agentHealth = agentHealthResult.status === 'fulfilled' ? agentHealthResult.value : null
+      const coordinatorHealth = coordinatorHealthResult.status === 'fulfilled' ? coordinatorHealthResult.value : null
+      const econHealth = econHealthResult.status === 'fulfilled' ? econHealthResult.value : null
+      const modelHealth = modelHealthResult.status === 'fulfilled' ? modelHealthResult.value : null
       const modelStats = modelList.reduce((acc: any, m: any) => {
         acc.total += 1
         const st = Object.keys(m.state || {})[0] || 'Pending'
@@ -489,7 +506,7 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({ children }) => {
       
       setAdminData({
         health: {
-          model: 'OK',
+          model: modelHealth,
           agent: agentHealth,
           coordinator: coordinatorHealth,
           econ: econHealth
@@ -529,6 +546,7 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({ children }) => {
         // LLM functionality
         llmState,
         createLlmConversation,
+        selectLlmConversation,
         sendLlmMessage,
         switchLlmModel,
         deleteLlmConversation,

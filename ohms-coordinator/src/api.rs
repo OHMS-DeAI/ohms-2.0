@@ -5,6 +5,7 @@ use crate::services::{
     InstructionAnalyzerService, RegistryService, RoutingService,
 };
 use ic_cdk_macros::*;
+use ohms_shared::{ModelManifest, SystemHealth};
 
 #[update]
 async fn register_agent(registration: AgentRegistration) -> Result<String, String> {
@@ -12,6 +13,18 @@ async fn register_agent(registration: AgentRegistration) -> Result<String, Strin
     let agent_id = RegistryService::register_agent(registration).await?;
     Metrics::increment_counter("agents_registered_total");
     Ok(agent_id)
+}
+
+#[update]
+fn notify_model_upload(manifest: ModelManifest) -> Result<(), String> {
+    Guards::require_model_canister()?;
+    RegistryService::register_model(manifest)
+}
+
+#[update]
+fn notify_model_deletion(model_id: String) -> Result<(), String> {
+    Guards::require_model_canister()?;
+    RegistryService::remove_model(&model_id)
 }
 
 #[update]
@@ -207,7 +220,7 @@ fn list_instruction_requests() -> Result<Vec<InstructionRequest>, String> {
 }
 
 #[query]
-fn health() -> CoordinatorHealth {
+fn health() -> SystemHealth {
     RegistryService::get_health()
 }
 
@@ -462,4 +475,22 @@ async fn validate_token_usage_quota(tokens: u64) -> Result<QuotaValidation, Stri
     Guards::require_caller_authenticated()?;
     let user_principal = ic_cdk::api::caller().to_string();
     EconIntegrationService::validate_token_usage_quota(&user_principal, tokens).await
+}
+
+candid::export_service!();
+
+#[query(name = "__get_candid_interface_tmp_hack")]
+fn export_candid() -> String {
+    __export_service()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::export_candid;
+
+    #[test]
+    fn generate_candid() {
+        std::fs::write("src/ohms_coordinator.did", export_candid())
+            .expect("failed to write coordinator Candid");
+    }
 }

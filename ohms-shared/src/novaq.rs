@@ -3,13 +3,13 @@
 
 use candid::{CandidType, Principal};
 use ic_cdk::api::call::{call, CallResult};
-use ohms_shared::{OHMSError, OHMSResult, NOVAQConfig, NOVAQCompressionResult};
+use ohms_shared::{NOVAQCompressionResult, NOVAQConfig, OHMSError, OHMSResult};
 use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 
 #[cfg(not(target_arch = "wasm32"))]
-use ohms_adaptq::{NOVAQCompressor, CompressionConfig, ModelData};
+use ohms_adaptq::{CompressionConfig, ModelData, NOVAQCompressor};
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
 pub struct CompressedModel {
@@ -72,7 +72,7 @@ impl NOVAQIntegration {
         config: NOVAQConfig,
     ) -> OHMSResult<String> {
         let job_id = format!("novaq-{}-{}", model_id, ohms_shared::current_time_millis());
-        
+
         let job = CompressionJob {
             job_id: job_id.clone(),
             model_id,
@@ -103,7 +103,9 @@ impl NOVAQIntegration {
         job_id: String,
         model_data: Vec<u8>,
     ) -> OHMSResult<NOVAQCompressionResult> {
-        let job = self.compression_jobs.get_mut(&job_id)
+        let job = self
+            .compression_jobs
+            .get_mut(&job_id)
             .ok_or_else(|| OHMSError::NotFound(format!("Compression job {} not found", job_id)))?;
 
         job.status = CompressionStatus::InProgress;
@@ -126,14 +128,16 @@ impl NOVAQIntegration {
         };
 
         // Parse model data - this would be more sophisticated in a real implementation
-        let model_data_parsed = ModelData::from_bytes(&model_data)
-            .map_err(|e| OHMSError::CompressionFailed(format!("Failed to parse model data: {}", e)))?;
+        let model_data_parsed = ModelData::from_bytes(&model_data).map_err(|e| {
+            OHMSError::CompressionFailed(format!("Failed to parse model data: {}", e))
+        })?;
 
         // Create NOVAQ compressor and compress
         let mut compressor = NOVAQCompressor::new(compression_config);
-        
-        let compressed_model = compressor.compress(&model_data_parsed)
-            .map_err(|e| OHMSError::CompressionFailed(format!("NOVAQ compression failed: {}", e)))?;
+
+        let compressed_model = compressor.compress(&model_data_parsed).map_err(|e| {
+            OHMSError::CompressionFailed(format!("NOVAQ compression failed: {}", e))
+        })?;
 
         let compression_time = start_time.elapsed();
 
@@ -143,7 +147,8 @@ impl NOVAQIntegration {
         let compression_ratio = original_size / compressed_size;
 
         // Verify compression accuracy
-        let accuracy_retention = compressor.verify_accuracy(&model_data_parsed, &compressed_model)
+        let accuracy_retention = compressor
+            .verify_accuracy(&model_data_parsed, &compressed_model)
             .unwrap_or(0.0);
 
         let result = NOVAQCompressionResult {
@@ -156,8 +161,9 @@ impl NOVAQIntegration {
         };
 
         // Store compressed model
-        let compressed_data = compressed_model.to_bytes()
-            .map_err(|e| OHMSError::CompressionFailed(format!("Failed to serialize compressed model: {}", e)))?;
+        let compressed_data = compressed_model.to_bytes().map_err(|e| {
+            OHMSError::CompressionFailed(format!("Failed to serialize compressed model: {}", e))
+        })?;
 
         let metadata = CompressionMetadata {
             config: job.config.clone(),
@@ -177,7 +183,8 @@ impl NOVAQIntegration {
             created_at: ohms_shared::current_time_seconds(),
         };
 
-        self.compressed_models.insert(job.model_id.clone(), compressed_model_record);
+        self.compressed_models
+            .insert(job.model_id.clone(), compressed_model_record);
 
         // Update job status
         job.status = CompressionStatus::Completed;
@@ -195,8 +202,10 @@ impl NOVAQIntegration {
     ) -> OHMSResult<NOVAQCompressionResult> {
         // In WASM environment, we need to use a different approach
         // For now, we'll simulate compression or call out to a compression service
-        
-        let job = self.compression_jobs.get_mut(&job_id)
+
+        let job = self
+            .compression_jobs
+            .get_mut(&job_id)
             .ok_or_else(|| OHMSError::NotFound(format!("Compression job {} not found", job_id)))?;
 
         job.status = CompressionStatus::InProgress;
@@ -243,7 +252,8 @@ impl NOVAQIntegration {
             created_at: ohms_shared::current_time_seconds(),
         };
 
-        self.compressed_models.insert(job.model_id.clone(), compressed_model_record);
+        self.compressed_models
+            .insert(job.model_id.clone(), compressed_model_record);
 
         job.status = CompressionStatus::Completed;
         job.completed_at = Some(ohms_shared::current_time_seconds());
@@ -261,40 +271,53 @@ impl NOVAQIntegration {
     }
 
     pub fn delete_compressed_model(&mut self, model_id: &str) -> OHMSResult<()> {
-        self.compressed_models.remove(model_id)
-            .ok_or_else(|| OHMSError::NotFound(format!("Compressed model {} not found", model_id)))?;
+        self.compressed_models.remove(model_id).ok_or_else(|| {
+            OHMSError::NotFound(format!("Compressed model {} not found", model_id))
+        })?;
         Ok(())
     }
 
     pub fn get_compression_stats(&self) -> CompressionStats {
         let total_jobs = self.compression_jobs.len();
-        let completed_jobs = self.compression_jobs.values()
+        let completed_jobs = self
+            .compression_jobs
+            .values()
             .filter(|job| job.status == CompressionStatus::Completed)
             .count();
-        let failed_jobs = self.compression_jobs.values()
+        let failed_jobs = self
+            .compression_jobs
+            .values()
             .filter(|job| job.status == CompressionStatus::Failed)
             .count();
 
         let total_models = self.compressed_models.len();
-        let total_original_size: u64 = self.compressed_models.values()
+        let total_original_size: u64 = self
+            .compressed_models
+            .values()
             .map(|model| model.compression_metadata.original_size_bytes)
             .sum();
-        let total_compressed_size: u64 = self.compressed_models.values()
+        let total_compressed_size: u64 = self
+            .compressed_models
+            .values()
             .map(|model| model.compression_metadata.compressed_size_bytes)
             .sum();
 
         let average_compression_ratio = if total_models > 0 {
-            self.compressed_models.values()
+            self.compressed_models
+                .values()
                 .map(|model| model.compression_metadata.compression_ratio)
-                .sum::<f32>() / total_models as f32
+                .sum::<f32>()
+                / total_models as f32
         } else {
             0.0
         };
 
         let average_accuracy_retention = if total_models > 0 {
-            self.compressed_models.values()
+            self.compressed_models
+                .values()
                 .map(|model| model.compression_metadata.accuracy_retention)
-                .sum::<f32>() / total_models as f32
+                .sum::<f32>()
+                / total_models as f32
         } else {
             0.0
         };
@@ -306,10 +329,12 @@ impl NOVAQIntegration {
             total_compressed_models: total_models as u64,
             total_original_size_gb: total_original_size as f32 / (1024.0 * 1024.0 * 1024.0),
             total_compressed_size_gb: total_compressed_size as f32 / (1024.0 * 1024.0 * 1024.0),
-            total_size_saved_gb: (total_original_size - total_compressed_size) as f32 / (1024.0 * 1024.0 * 1024.0),
+            total_size_saved_gb: (total_original_size - total_compressed_size) as f32
+                / (1024.0 * 1024.0 * 1024.0),
             average_compression_ratio,
             average_accuracy_retention,
-            total_energy_saved_kwh: self.estimate_energy_savings(total_original_size, total_compressed_size),
+            total_energy_saved_kwh: self
+                .estimate_energy_savings(total_original_size, total_compressed_size),
         }
     }
 
@@ -320,31 +345,35 @@ impl NOVAQIntegration {
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn create_simulated_compressed_data(&self, original_data: &[u8], config: &NOVAQConfig) -> Vec<u8> {
+    fn create_simulated_compressed_data(
+        &self,
+        original_data: &[u8],
+        config: &NOVAQConfig,
+    ) -> Vec<u8> {
         // Create a deterministic "compressed" representation
         // This is just for demonstration - in reality, this would be actual compressed data
-        
+
         let mut compressed = Vec::new();
-        
+
         // Add config as header
         compressed.extend_from_slice(&config.target_bits.to_le_bytes());
         compressed.extend_from_slice(&config.num_subspaces.to_le_bytes());
         compressed.extend_from_slice(&config.codebook_size_l1.to_le_bytes());
         compressed.extend_from_slice(&config.codebook_size_l2.to_le_bytes());
-        
+
         // Add hash of original data
         let hash = self.calculate_hash(original_data);
         compressed.extend_from_slice(hash.as_bytes());
-        
+
         // Add simulated compressed payload (much smaller than original)
         let target_size = (original_data.len() as f32 / config.target_bits) as usize;
         let mut payload = vec![0u8; target_size.min(1024)]; // Limit to 1KB for demo
-        
+
         // Fill with deterministic data based on original
         for (i, byte) in payload.iter_mut().enumerate() {
             *byte = ((original_data.len() + i) % 256) as u8;
         }
-        
+
         compressed.extend_from_slice(&payload);
         compressed
     }
@@ -352,10 +381,10 @@ impl NOVAQIntegration {
     fn estimate_energy_savings(&self, original_size: u64, compressed_size: u64) -> f32 {
         // Estimate energy savings based on reduced storage and transfer requirements
         // This is a simplified calculation - real energy savings would depend on many factors
-        
+
         let size_reduction = original_size.saturating_sub(compressed_size) as f32;
         let gb_saved = size_reduction / (1024.0 * 1024.0 * 1024.0);
-        
+
         // Estimate: 1 GB storage/transfer saves approximately 0.1 kWh
         gb_saved * 0.1
     }

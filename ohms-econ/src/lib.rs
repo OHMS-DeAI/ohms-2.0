@@ -2,21 +2,21 @@
 // Real Internet Computer canister for token economics and incentive systems
 
 use candid::{candid_method, CandidType, Principal};
-use ic_cdk::{api, caller, id, init, post_upgrade, pre_upgrade, query, storage, update};
 use ic_cdk::api::call::{call, CallResult};
+use ic_cdk::{api, caller, id, init, post_upgrade, pre_upgrade, query, storage, update};
 use ic_stable_structures::{
-    DefaultMemoryImpl, StableBTreeMap, Storable, 
-    memory_manager::{MemoryId, MemoryManager, VirtualMemory}
+    memory_manager::{MemoryId, MemoryManager, VirtualMemory},
+    DefaultMemoryImpl, StableBTreeMap, Storable,
 };
 use ohms_shared::{
-    CanisterInfo, ComponentHealth, SystemHealth, OHMSError, OHMSResult,
-    current_time_seconds, current_time_millis
+    current_time_millis, current_time_seconds, CanisterInfo, ComponentHealth, OHMSError,
+    OHMSResult, SystemHealth,
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use sha2::{Sha256, Digest};
 
 type Memory = VirtualMemory<DefaultMemoryImpl>;
 type TokenAccountStorage = StableBTreeMap<Principal, TokenAccount, Memory>;
@@ -29,39 +29,39 @@ thread_local! {
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> = RefCell::new(
         MemoryManager::init(DefaultMemoryImpl::default())
     );
-    
+
     static TOKEN_ACCOUNTS: RefCell<TokenAccountStorage> = RefCell::new(
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(0)))
         )
     );
-    
+
     static STAKING_POSITIONS: RefCell<StakingPositionStorage> = RefCell::new(
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(1)))
         )
     );
-    
+
     static REWARD_POOLS: RefCell<RewardPoolStorage> = RefCell::new(
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(2)))
         )
     );
-    
+
     static TRANSACTIONS: RefCell<TransactionStorage> = RefCell::new(
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(3)))
         )
     );
-    
+
     static GOVERNANCE_PROPOSALS: RefCell<GovernanceProposalStorage> = RefCell::new(
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(4)))
         )
     );
-    
+
     static PROTOCOL_CONFIG: RefCell<ProtocolConfig> = RefCell::new(ProtocolConfig::default());
-    
+
     static ECONOMIC_METRICS: RefCell<EconomicMetrics> = RefCell::new(EconomicMetrics::new());
 }
 
@@ -288,17 +288,17 @@ impl Default for ProtocolConfig {
             token_symbol: "OHMS".to_string(),
             total_supply: 1_000_000_000_000_000, // 1B tokens with 6 decimals
             circulating_supply: 0,
-            base_staking_apy: 0.08, // 8% APY
+            base_staking_apy: 0.08,                // 8% APY
             governance_threshold: 100_000_000_000, // 100k tokens
-            proposal_deposit: 10_000_000_000, // 10k tokens
-            voting_period: 604800, // 7 days
-            execution_delay: 172800, // 2 days
-            transaction_fee: 1000, // 0.001 tokens
-            model_usage_fee_rate: 0.01, // 1%
-            compute_fee_rate: 0.02, // 2%
+            proposal_deposit: 10_000_000_000,      // 10k tokens
+            voting_period: 604800,                 // 7 days
+            execution_delay: 172800,               // 2 days
+            transaction_fee: 1000,                 // 0.001 tokens
+            model_usage_fee_rate: 0.01,            // 1%
+            compute_fee_rate: 0.02,                // 2%
             treasury_reserve: 100_000_000_000_000, // 100M tokens
-            inflation_rate: 0.05, // 5% annual
-            burn_rate: 0.02, // 2% of fees burned
+            inflation_rate: 0.05,                  // 5% annual
+            burn_rate: 0.02,                       // 2% of fees burned
             last_updated: current_time_seconds(),
         }
     }
@@ -370,20 +370,20 @@ pub struct VoteRequest {
 #[init]
 fn init() {
     ic_cdk::println!("OHMS Economic Canister initialized");
-    
+
     // Initialize reward pools
     initialize_reward_pools();
-    
+
     // Register with coordinator
     ic_cdk::spawn(async {
         register_with_coordinator().await;
     });
-    
+
     // Start background economic processes
     ic_cdk::spawn(async {
         start_reward_distribution().await;
     });
-    
+
     ic_cdk::spawn(async {
         start_metrics_updater().await;
     });
@@ -397,17 +397,17 @@ fn pre_upgrade() {
 #[post_upgrade]
 fn post_upgrade() {
     ic_cdk::println!("OHMS Economic Canister upgraded");
-    
+
     // Re-register with coordinator
     ic_cdk::spawn(async {
         register_with_coordinator().await;
     });
-    
+
     // Restart background processes
     ic_cdk::spawn(async {
         start_reward_distribution().await;
     });
-    
+
     ic_cdk::spawn(async {
         start_metrics_updater().await;
     });
@@ -421,38 +421,44 @@ fn post_upgrade() {
 #[candid_method(update)]
 pub async fn transfer(request: TransferRequest) -> OHMSResult<String> {
     let caller_id = caller();
-    
+
     // Validate transfer
     if request.amount == 0 {
-        return Err(OHMSError::InvalidInput("Transfer amount must be greater than 0".to_string()));
+        return Err(OHMSError::InvalidInput(
+            "Transfer amount must be greater than 0".to_string(),
+        ));
     }
-    
+
     if caller_id == request.to {
-        return Err(OHMSError::InvalidInput("Cannot transfer to yourself".to_string()));
+        return Err(OHMSError::InvalidInput(
+            "Cannot transfer to yourself".to_string(),
+        ));
     }
-    
+
     // Get sender account
     let mut sender_account = get_or_create_account(caller_id);
-    
+
     // Check balance (including fees)
     let total_cost = request.amount + get_protocol_config().transaction_fee;
     if sender_account.balance < total_cost {
-        return Err(OHMSError::InsufficientFunds("Insufficient balance for transfer and fees".to_string()));
+        return Err(OHMSError::InsufficientFunds(
+            "Insufficient balance for transfer and fees".to_string(),
+        ));
     }
-    
+
     // Get or create recipient account
     let mut recipient_account = get_or_create_account(request.to);
-    
+
     // Perform transfer
     sender_account.balance -= total_cost;
     recipient_account.balance += request.amount;
-    
+
     // Update accounts
     TOKEN_ACCOUNTS.with(|accounts| {
         accounts.borrow_mut().insert(caller_id, sender_account);
         accounts.borrow_mut().insert(request.to, recipient_account);
     });
-    
+
     // Record transaction
     let tx_id = generate_transaction_id(&caller_id, &request.to, request.amount);
     let transaction = Transaction {
@@ -473,17 +479,17 @@ pub async fn transfer(request: TransferRequest) -> OHMSResult<String> {
             metadata
         },
     };
-    
+
     TRANSACTIONS.with(|txs| {
         txs.borrow_mut().insert(tx_id.clone(), transaction);
     });
-    
+
     // Process fees (burn and treasury)
     process_transaction_fees(get_protocol_config().transaction_fee).await;
-    
+
     // Update metrics
     update_economic_metrics().await;
-    
+
     Ok(tx_id)
 }
 
@@ -491,7 +497,9 @@ pub async fn transfer(request: TransferRequest) -> OHMSResult<String> {
 #[candid_method(query)]
 pub fn get_balance(account: Principal) -> u64 {
     TOKEN_ACCOUNTS.with(|accounts| {
-        accounts.borrow().get(&account)
+        accounts
+            .borrow()
+            .get(&account)
             .map(|acc| acc.balance)
             .unwrap_or(0)
     })
@@ -500,9 +508,7 @@ pub fn get_balance(account: Principal) -> u64 {
 #[query]
 #[candid_method(query)]
 pub fn get_account_info(account: Principal) -> Option<TokenAccount> {
-    TOKEN_ACCOUNTS.with(|accounts| {
-        accounts.borrow().get(&account)
-    })
+    TOKEN_ACCOUNTS.with(|accounts| accounts.borrow().get(&account))
 }
 
 #[update]
@@ -510,23 +516,23 @@ pub fn get_account_info(account: Principal) -> Option<TokenAccount> {
 pub async fn mint_tokens(to: Principal, amount: u64) -> OHMSResult<()> {
     // Only admin can mint (simplified authorization)
     let caller_id = caller();
-    
+
     // In a real system, check if caller is authorized minter
     // For now, any canister can mint (this would be restricted)
-    
+
     let mut account = get_or_create_account(to);
     account.balance += amount;
-    
+
     TOKEN_ACCOUNTS.with(|accounts| {
         accounts.borrow_mut().insert(to, account);
     });
-    
+
     // Update circulating supply
     PROTOCOL_CONFIG.with(|config| {
         let mut cfg = config.borrow_mut();
         cfg.circulating_supply += amount;
     });
-    
+
     // Record mint transaction
     let tx_id = generate_transaction_id(&id(), &to, amount);
     let transaction = Transaction {
@@ -541,11 +547,11 @@ pub async fn mint_tokens(to: Principal, amount: u64) -> OHMSResult<()> {
         status: TransactionStatus::Confirmed,
         metadata: HashMap::new(),
     };
-    
+
     TRANSACTIONS.with(|txs| {
         txs.borrow_mut().insert(tx_id, transaction);
     });
-    
+
     Ok(())
 }
 
@@ -557,25 +563,29 @@ pub async fn mint_tokens(to: Principal, amount: u64) -> OHMSResult<()> {
 #[candid_method(update)]
 pub async fn stake_tokens(request: StakeRequest) -> OHMSResult<String> {
     let caller_id = caller();
-    
+
     // Validate staking request
     if request.amount == 0 {
-        return Err(OHMSError::InvalidInput("Staking amount must be greater than 0".to_string()));
+        return Err(OHMSError::InvalidInput(
+            "Staking amount must be greater than 0".to_string(),
+        ));
     }
-    
+
     // Get account and check balance
     let mut account = get_or_create_account(caller_id);
     if account.balance < request.amount {
-        return Err(OHMSError::InsufficientFunds("Insufficient balance for staking".to_string()));
+        return Err(OHMSError::InsufficientFunds(
+            "Insufficient balance for staking".to_string(),
+        ));
     }
-    
+
     // Calculate staking multiplier based on type and duration
     let multiplier = calculate_staking_multiplier(&request.staking_type, request.lock_duration);
-    
+
     // Create staking position
     let position_id = generate_position_id(&caller_id, request.amount);
     let unlock_time = current_time_seconds() + request.lock_duration;
-    
+
     let staking_position = StakingPosition {
         position_id: position_id.clone(),
         staker: caller_id,
@@ -589,24 +599,26 @@ pub async fn stake_tokens(request: StakeRequest) -> OHMSResult<String> {
         status: StakingStatus::Active,
         auto_compound: request.auto_compound,
     };
-    
+
     // Update account balances
     account.balance -= request.amount;
     account.locked_balance += request.amount;
     account.staking_power += (request.amount as f32 * multiplier) as u64;
-    
+
     TOKEN_ACCOUNTS.with(|accounts| {
         accounts.borrow_mut().insert(caller_id, account);
     });
-    
+
     // Store staking position
     STAKING_POSITIONS.with(|positions| {
-        positions.borrow_mut().insert(position_id.clone(), staking_position);
+        positions
+            .borrow_mut()
+            .insert(position_id.clone(), staking_position);
     });
-    
+
     // Update reward pool
     update_reward_pool_stakes(&request.staking_type, request.amount, true).await;
-    
+
     // Record staking transaction
     let tx_id = generate_transaction_id(&caller_id, &id(), request.amount);
     let transaction = Transaction {
@@ -622,18 +634,21 @@ pub async fn stake_tokens(request: StakeRequest) -> OHMSResult<String> {
         metadata: {
             let mut metadata = HashMap::new();
             metadata.insert("position_id".to_string(), position_id.clone());
-            metadata.insert("staking_type".to_string(), format!("{:?}", request.staking_type));
+            metadata.insert(
+                "staking_type".to_string(),
+                format!("{:?}", request.staking_type),
+            );
             metadata
         },
     };
-    
+
     TRANSACTIONS.with(|txs| {
         txs.borrow_mut().insert(tx_id, transaction);
     });
-    
+
     // Update metrics
     update_economic_metrics().await;
-    
+
     Ok(position_id)
 }
 
@@ -641,49 +656,55 @@ pub async fn stake_tokens(request: StakeRequest) -> OHMSResult<String> {
 #[candid_method(update)]
 pub async fn unstake_tokens(position_id: String) -> OHMSResult<()> {
     let caller_id = caller();
-    
+
     // Get staking position
     let mut position = STAKING_POSITIONS.with(|positions| {
         positions.borrow().get(&position_id).ok_or_else(|| {
             OHMSError::NotFound(format!("Staking position {} not found", position_id))
         })
     })?;
-    
+
     // Validate ownership
     if position.staker != caller_id {
-        return Err(OHMSError::Unauthorized("Position does not belong to caller".to_string()));
+        return Err(OHMSError::Unauthorized(
+            "Position does not belong to caller".to_string(),
+        ));
     }
-    
+
     // Check if unlocked
     if current_time_seconds() < position.unlock_time {
-        return Err(OHMSError::InvalidState("Position is still locked".to_string()));
+        return Err(OHMSError::InvalidState(
+            "Position is still locked".to_string(),
+        ));
     }
-    
+
     // Calculate final rewards
     let final_rewards = calculate_staking_rewards(&position).await;
-    
+
     // Update account
     let mut account = get_or_create_account(caller_id);
     account.balance += position.amount + final_rewards;
     account.locked_balance -= position.amount;
     account.staking_power -= (position.amount as f32 * position.multiplier) as u64;
     account.earned_rewards += final_rewards;
-    
+
     TOKEN_ACCOUNTS.with(|accounts| {
         accounts.borrow_mut().insert(caller_id, account);
     });
-    
+
     // Update position status
     position.status = StakingStatus::Withdrawn;
     position.current_rewards = final_rewards;
-    
+
     STAKING_POSITIONS.with(|positions| {
-        positions.borrow_mut().insert(position_id.clone(), position.clone());
+        positions
+            .borrow_mut()
+            .insert(position_id.clone(), position.clone());
     });
-    
+
     // Update reward pool
     update_reward_pool_stakes(&position.staking_type, position.amount, false).await;
-    
+
     // Record unstaking transaction
     let tx_id = generate_transaction_id(&id(), &caller_id, position.amount + final_rewards);
     let transaction = Transaction {
@@ -704,19 +725,19 @@ pub async fn unstake_tokens(position_id: String) -> OHMSResult<()> {
             metadata
         },
     };
-    
+
     TRANSACTIONS.with(|txs| {
         txs.borrow_mut().insert(tx_id, transaction);
     });
-    
+
     // Mint rewards if needed
     if final_rewards > 0 {
         mint_tokens(caller_id, final_rewards).await?;
     }
-    
+
     // Update metrics
     update_economic_metrics().await;
-    
+
     Ok(())
 }
 
@@ -724,7 +745,8 @@ pub async fn unstake_tokens(position_id: String) -> OHMSResult<()> {
 #[candid_method(query)]
 pub fn get_staking_positions(staker: Principal) -> Vec<StakingPosition> {
     STAKING_POSITIONS.with(|positions| {
-        positions.borrow()
+        positions
+            .borrow()
             .iter()
             .filter_map(|(_, position)| {
                 if position.staker == staker && position.status == StakingStatus::Active {
@@ -745,11 +767,11 @@ pub fn get_staking_rewards(position_id: String) -> OHMSResult<u64> {
             OHMSError::NotFound(format!("Staking position {} not found", position_id))
         })
     })?;
-    
+
     if position.status != StakingStatus::Active {
         return Ok(position.current_rewards);
     }
-    
+
     let rewards = calculate_staking_rewards_sync(&position);
     Ok(rewards)
 }
@@ -762,23 +784,27 @@ pub fn get_staking_rewards(position_id: String) -> OHMSResult<u64> {
 #[candid_method(update)]
 pub async fn create_proposal(request: ProposalRequest) -> OHMSResult<String> {
     let caller_id = caller();
-    
+
     // Check if caller has enough tokens for proposal deposit
     let account = get_or_create_account(caller_id);
     let config = get_protocol_config();
-    
+
     if account.balance < config.proposal_deposit {
-        return Err(OHMSError::InsufficientFunds("Insufficient balance for proposal deposit".to_string()));
+        return Err(OHMSError::InsufficientFunds(
+            "Insufficient balance for proposal deposit".to_string(),
+        ));
     }
-    
+
     // Check governance threshold
     if account.staking_power < config.governance_threshold {
-        return Err(OHMSError::Unauthorized("Insufficient staking power for governance".to_string()));
+        return Err(OHMSError::Unauthorized(
+            "Insufficient staking power for governance".to_string(),
+        ));
     }
-    
+
     // Generate proposal ID
     let proposal_id = generate_proposal_id(&caller_id, &request.title);
-    
+
     // Create proposal
     let proposal = GovernanceProposal {
         proposal_id: proposal_id.clone(),
@@ -797,20 +823,20 @@ pub async fn create_proposal(request: ProposalRequest) -> OHMSResult<String> {
         execution_payload: request.execution_payload,
         created_at: current_time_seconds(),
     };
-    
+
     GOVERNANCE_PROPOSALS.with(|proposals| {
         proposals.borrow_mut().insert(proposal_id.clone(), proposal);
     });
-    
+
     // Lock proposal deposit
     let mut updated_account = account;
     updated_account.balance -= config.proposal_deposit;
     updated_account.locked_balance += config.proposal_deposit;
-    
+
     TOKEN_ACCOUNTS.with(|accounts| {
         accounts.borrow_mut().insert(caller_id, updated_account);
     });
-    
+
     Ok(proposal_id)
 }
 
@@ -818,44 +844,52 @@ pub async fn create_proposal(request: ProposalRequest) -> OHMSResult<String> {
 #[candid_method(update)]
 pub async fn vote_on_proposal(request: VoteRequest) -> OHMSResult<()> {
     let caller_id = caller();
-    
+
     // Get proposal
     let mut proposal = GOVERNANCE_PROPOSALS.with(|proposals| {
         proposals.borrow().get(&request.proposal_id).ok_or_else(|| {
             OHMSError::NotFound(format!("Proposal {} not found", request.proposal_id))
         })
     })?;
-    
+
     // Check if voting is still active
     let current_time = current_time_seconds();
     if current_time > proposal.start_time + proposal.voting_period {
-        return Err(OHMSError::InvalidState("Voting period has ended".to_string()));
+        return Err(OHMSError::InvalidState(
+            "Voting period has ended".to_string(),
+        ));
     }
-    
+
     if proposal.status != ProposalStatus::Active {
-        return Err(OHMSError::InvalidState("Proposal is not active".to_string()));
+        return Err(OHMSError::InvalidState(
+            "Proposal is not active".to_string(),
+        ));
     }
-    
+
     // Validate voting power
     let account = get_or_create_account(caller_id);
     if account.staking_power < request.voting_power {
-        return Err(OHMSError::InvalidInput("Insufficient staking power for vote".to_string()));
+        return Err(OHMSError::InvalidInput(
+            "Insufficient staking power for vote".to_string(),
+        ));
     }
-    
+
     // Record vote
     if request.vote {
         proposal.votes_for += request.voting_power;
     } else {
         proposal.votes_against += request.voting_power;
     }
-    
+
     GOVERNANCE_PROPOSALS.with(|proposals| {
-        proposals.borrow_mut().insert(request.proposal_id.clone(), proposal.clone());
+        proposals
+            .borrow_mut()
+            .insert(request.proposal_id.clone(), proposal.clone());
     });
-    
+
     // Check if proposal should be finalized
     check_and_finalize_proposal(&request.proposal_id).await?;
-    
+
     Ok(())
 }
 
@@ -863,9 +897,10 @@ pub async fn vote_on_proposal(request: VoteRequest) -> OHMSResult<()> {
 #[candid_method(query)]
 pub fn get_proposal(proposal_id: String) -> OHMSResult<GovernanceProposal> {
     GOVERNANCE_PROPOSALS.with(|proposals| {
-        proposals.borrow().get(&proposal_id).ok_or_else(|| {
-            OHMSError::NotFound(format!("Proposal {} not found", proposal_id))
-        })
+        proposals
+            .borrow()
+            .get(&proposal_id)
+            .ok_or_else(|| OHMSError::NotFound(format!("Proposal {} not found", proposal_id)))
     })
 }
 
@@ -873,7 +908,8 @@ pub fn get_proposal(proposal_id: String) -> OHMSResult<GovernanceProposal> {
 #[candid_method(query)]
 pub fn list_active_proposals() -> Vec<GovernanceProposal> {
     GOVERNANCE_PROPOSALS.with(|proposals| {
-        proposals.borrow()
+        proposals
+            .borrow()
             .iter()
             .filter_map(|(_, proposal)| {
                 if proposal.status == ProposalStatus::Active {
@@ -895,28 +931,30 @@ pub fn list_active_proposals() -> Vec<GovernanceProposal> {
 pub async fn charge_model_usage_fee(
     user: Principal,
     model_id: String,
-    usage_amount: u64
+    usage_amount: u64,
 ) -> OHMSResult<String> {
     let config = get_protocol_config();
     let fee_amount = (usage_amount as f32 * config.model_usage_fee_rate) as u64;
-    
+
     // Get user account
     let mut user_account = get_or_create_account(user);
-    
+
     if user_account.balance < fee_amount {
-        return Err(OHMSError::InsufficientFunds("Insufficient balance for model usage fee".to_string()));
+        return Err(OHMSError::InsufficientFunds(
+            "Insufficient balance for model usage fee".to_string(),
+        ));
     }
-    
+
     // Charge fee
     user_account.balance -= fee_amount;
-    
+
     TOKEN_ACCOUNTS.with(|accounts| {
         accounts.borrow_mut().insert(user, user_account);
     });
-    
+
     // Process fee distribution
     distribute_usage_fees(fee_amount, &model_id).await;
-    
+
     // Record transaction
     let tx_id = generate_transaction_id(&user, &id(), fee_amount);
     let transaction = Transaction {
@@ -936,11 +974,11 @@ pub async fn charge_model_usage_fee(
             metadata
         },
     };
-    
+
     TRANSACTIONS.with(|txs| {
         txs.borrow_mut().insert(tx_id.clone(), transaction);
     });
-    
+
     Ok(tx_id)
 }
 
@@ -949,39 +987,41 @@ pub async fn charge_model_usage_fee(
 pub async fn charge_compute_fee(
     user: Principal,
     compute_units: u64,
-    provider: Principal
+    provider: Principal,
 ) -> OHMSResult<String> {
     let config = get_protocol_config();
     let fee_amount = (compute_units as f32 * config.compute_fee_rate) as u64;
-    
+
     // Get user account
     let mut user_account = get_or_create_account(user);
-    
+
     if user_account.balance < fee_amount {
-        return Err(OHMSError::InsufficientFunds("Insufficient balance for compute fee".to_string()));
+        return Err(OHMSError::InsufficientFunds(
+            "Insufficient balance for compute fee".to_string(),
+        ));
     }
-    
+
     // Charge fee
     user_account.balance -= fee_amount;
-    
+
     TOKEN_ACCOUNTS.with(|accounts| {
         accounts.borrow_mut().insert(user, user_account);
     });
-    
+
     // Pay compute provider (after protocol fee)
     let protocol_fee = (fee_amount as f32 * 0.1) as u64; // 10% protocol fee
     let provider_payment = fee_amount - protocol_fee;
-    
+
     let mut provider_account = get_or_create_account(provider);
     provider_account.balance += provider_payment;
-    
+
     TOKEN_ACCOUNTS.with(|accounts| {
         accounts.borrow_mut().insert(provider, provider_account);
     });
-    
+
     // Process protocol fees
     process_transaction_fees(protocol_fee).await;
-    
+
     // Record transaction
     let tx_id = generate_transaction_id(&user, &provider, fee_amount);
     let transaction = Transaction {
@@ -1001,11 +1041,11 @@ pub async fn charge_compute_fee(
             metadata
         },
     };
-    
+
     TRANSACTIONS.with(|txs| {
         txs.borrow_mut().insert(tx_id.clone(), transaction);
     });
-    
+
     Ok(tx_id)
 }
 
@@ -1019,7 +1059,7 @@ pub fn health_check() -> SystemHealth {
     let account_count = TOKEN_ACCOUNTS.with(|accounts| accounts.borrow().len());
     let stake_count = STAKING_POSITIONS.with(|positions| positions.borrow().len());
     let proposal_count = GOVERNANCE_PROPOSALS.with(|proposals| proposals.borrow().len());
-    
+
     let memory_usage = (api::instruction_counter() / 1_000_000) as f32;
     let health_status = if memory_usage < 800.0 && account_count < 10000 {
         ComponentHealth::Healthy
@@ -1028,7 +1068,7 @@ pub fn health_check() -> SystemHealth {
     } else {
         ComponentHealth::Unhealthy
     };
-    
+
     SystemHealth {
         canister_id: id(),
         status: health_status,
@@ -1060,12 +1100,9 @@ pub fn get_economic_metrics() -> EconomicMetrics {
 
 #[query]
 #[candid_method(query)]
-pub fn get_transaction_history(
-    account: Principal,
-    limit: Option<u32>
-) -> Vec<Transaction> {
+pub fn get_transaction_history(account: Principal, limit: Option<u32>) -> Vec<Transaction> {
     let limit = limit.unwrap_or(100).min(1000) as usize;
-    
+
     TRANSACTIONS.with(|txs| {
         txs.borrow()
             .iter()
@@ -1087,7 +1124,7 @@ pub fn get_transaction_history(
 
 async fn register_with_coordinator() {
     let coordinator_id = get_coordinator_canister_id();
-    
+
     if let Some(coordinator) = coordinator_id {
         let canister_info = CanisterInfo {
             canister_id: id(),
@@ -1097,20 +1134,21 @@ async fn register_with_coordinator() {
             health: ComponentHealth::Healthy,
             metadata: {
                 let mut metadata = HashMap::new();
-                metadata.insert("total_supply".to_string(), 
-                    get_protocol_config().total_supply.to_string());
-                metadata.insert("circulating_supply".to_string(), 
-                    get_protocol_config().circulating_supply.to_string());
+                metadata.insert(
+                    "total_supply".to_string(),
+                    get_protocol_config().total_supply.to_string(),
+                );
+                metadata.insert(
+                    "circulating_supply".to_string(),
+                    get_protocol_config().circulating_supply.to_string(),
+                );
                 metadata
             },
         };
-        
-        let result: CallResult<(OHMSResult<()>,)> = call(
-            coordinator,
-            "register_canister",
-            (canister_info,)
-        ).await;
-        
+
+        let result: CallResult<(OHMSResult<()>,)> =
+            call(coordinator, "register_canister", (canister_info,)).await;
+
         match result {
             Ok((Ok(()),)) => ic_cdk::println!("Successfully registered with coordinator"),
             Ok((Err(e),)) => ic_cdk::println!("Failed to register with coordinator: {:?}", e),
@@ -1121,8 +1159,10 @@ async fn register_with_coordinator() {
 
 fn get_or_create_account(principal: Principal) -> TokenAccount {
     TOKEN_ACCOUNTS.with(|accounts| {
-        accounts.borrow().get(&principal).unwrap_or_else(|| {
-            TokenAccount {
+        accounts
+            .borrow()
+            .get(&principal)
+            .unwrap_or_else(|| TokenAccount {
                 owner: principal,
                 balance: 0,
                 locked_balance: 0,
@@ -1131,8 +1171,7 @@ fn get_or_create_account(principal: Principal) -> TokenAccount {
                 reputation_score: 1.0,
                 last_activity: current_time_seconds(),
                 created_at: current_time_seconds(),
-            }
-        })
+            })
     })
 }
 
@@ -1172,10 +1211,10 @@ fn calculate_staking_multiplier(staking_type: &StakingType, lock_duration: u64) 
         StakingType::ModelProvider => 1.8,
         StakingType::ComputeProvider => 1.6,
     };
-    
+
     // Duration bonus: up to 2x for 1 year lock
     let duration_bonus = (lock_duration as f32 / (365.0 * 24.0 * 3600.0)).min(1.0);
-    
+
     base_multiplier * (1.0 + duration_bonus)
 }
 
@@ -1186,23 +1225,23 @@ async fn calculate_staking_rewards(position: &StakingPosition) -> u64 {
 fn calculate_staking_rewards_sync(position: &StakingPosition) -> u64 {
     let current_time = current_time_seconds();
     let time_staked = current_time - position.start_time;
-    
+
     // Get base APY from config
     let config = get_protocol_config();
     let annual_rate = config.base_staking_apy * position.multiplier;
-    
+
     // Calculate rewards (simplified compound interest)
     let seconds_in_year = 365.0 * 24.0 * 3600.0;
     let time_factor = time_staked as f32 / seconds_in_year;
-    
+
     let rewards = (position.amount as f32 * annual_rate * time_factor) as u64;
-    
+
     rewards + position.current_rewards
 }
 
 async fn update_reward_pool_stakes(staking_type: &StakingType, amount: u64, is_stake: bool) {
     let pool_id = format!("{:?}_pool", staking_type);
-    
+
     REWARD_POOLS.with(|pools| {
         if let Some(mut pool) = pools.borrow_mut().get(&pool_id) {
             if is_stake {
@@ -1225,7 +1264,7 @@ fn initialize_reward_pools() {
         StakingType::ModelProvider,
         StakingType::ComputeProvider,
     ];
-    
+
     REWARD_POOLS.with(|pools| {
         for staking_type in staking_types {
             let pool_id = format!("{:?}_pool", staking_type);
@@ -1264,7 +1303,7 @@ async fn process_transaction_fees(fee_amount: u64) {
     let config = get_protocol_config();
     let burn_amount = (fee_amount as f32 * config.burn_rate) as u64;
     let treasury_amount = fee_amount - burn_amount;
-    
+
     // Burn tokens (remove from circulation)
     PROTOCOL_CONFIG.with(|cfg| {
         let mut config = cfg.borrow_mut();
@@ -1278,7 +1317,7 @@ async fn distribute_usage_fees(fee_amount: u64, _model_id: &str) {
     let staker_share = (fee_amount as f32 * 0.6) as u64; // 60% to stakers
     let treasury_share = (fee_amount as f32 * 0.3) as u64; // 30% to treasury
     let burn_share = fee_amount - staker_share - treasury_share; // 10% burned
-    
+
     // Add to staking rewards pool
     REWARD_POOLS.with(|pools| {
         if let Some(mut pool) = pools.borrow_mut().get("Standard_pool") {
@@ -1286,7 +1325,7 @@ async fn distribute_usage_fees(fee_amount: u64, _model_id: &str) {
             pools.borrow_mut().insert("Standard_pool".to_string(), pool);
         }
     });
-    
+
     // Update treasury and burn
     PROTOCOL_CONFIG.with(|cfg| {
         let mut config = cfg.borrow_mut();
@@ -1302,7 +1341,8 @@ fn calculate_voting_threshold() -> u64 {
 
 fn get_total_voting_power() -> u64 {
     TOKEN_ACCOUNTS.with(|accounts| {
-        accounts.borrow()
+        accounts
+            .borrow()
             .iter()
             .map(|(_, account)| account.staking_power)
             .sum()
@@ -1311,29 +1351,32 @@ fn get_total_voting_power() -> u64 {
 
 async fn check_and_finalize_proposal(proposal_id: &str) -> OHMSResult<()> {
     let mut proposal = GOVERNANCE_PROPOSALS.with(|proposals| {
-        proposals.borrow().get(proposal_id).ok_or_else(|| {
-            OHMSError::NotFound(format!("Proposal {} not found", proposal_id))
-        })
+        proposals
+            .borrow()
+            .get(proposal_id)
+            .ok_or_else(|| OHMSError::NotFound(format!("Proposal {} not found", proposal_id)))
     })?;
-    
+
     let current_time = current_time_seconds();
-    
+
     // Check if voting period has ended
     if current_time > proposal.start_time + proposal.voting_period {
         // Determine outcome
         let total_votes = proposal.votes_for + proposal.votes_against;
-        
+
         if total_votes >= proposal.voting_threshold && proposal.votes_for > proposal.votes_against {
             proposal.status = ProposalStatus::Passed;
         } else {
             proposal.status = ProposalStatus::Rejected;
         }
-        
+
         GOVERNANCE_PROPOSALS.with(|proposals| {
-            proposals.borrow_mut().insert(proposal_id.to_string(), proposal);
+            proposals
+                .borrow_mut()
+                .insert(proposal_id.to_string(), proposal);
         });
     }
-    
+
     Ok(())
 }
 
@@ -1341,7 +1384,7 @@ async fn update_economic_metrics() {
     let mut total_staked = 0u64;
     let mut active_stakers = 0u32;
     let mut total_stake_duration = 0u64;
-    
+
     STAKING_POSITIONS.with(|positions| {
         for (_, position) in positions.borrow().iter() {
             if position.status == StakingStatus::Active {
@@ -1351,20 +1394,21 @@ async fn update_economic_metrics() {
             }
         }
     });
-    
+
     let average_stake_duration = if active_stakers > 0 {
         total_stake_duration / active_stakers as u64
     } else {
         0
     };
-    
+
     let total_rewards_distributed = REWARD_POOLS.with(|pools| {
-        pools.borrow()
+        pools
+            .borrow()
             .iter()
             .map(|(_, pool)| pool.distributed_rewards)
             .sum()
     });
-    
+
     ECONOMIC_METRICS.with(|metrics| {
         let mut m = metrics.borrow_mut();
         m.total_staked = total_staked;

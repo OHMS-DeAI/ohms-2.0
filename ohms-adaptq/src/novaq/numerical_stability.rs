@@ -138,11 +138,11 @@ impl NumericalStabilityGuard {
         for (&orig, &recon) in original.iter().zip(reconstructed.iter()) {
             let orig_clean = self.sanitize_value(orig);
             let recon_clean = self.sanitize_value(recon);
-            
+
             let diff = orig_clean - recon_clean;
             let squared_diff = diff * diff;
             let clean_squared = self.sanitize_value(squared_diff);
-            
+
             if clean_squared.is_finite() {
                 sum += clean_squared;
                 valid_count += 1;
@@ -189,11 +189,16 @@ impl NumericalStabilityGuard {
     }
 
     /// Safe weighted update for learning rate applications
-    pub fn safe_weighted_update(&mut self, old_value: f32, new_value: f32, learning_rate: f32) -> f32 {
+    pub fn safe_weighted_update(
+        &mut self,
+        old_value: f32,
+        new_value: f32,
+        learning_rate: f32,
+    ) -> f32 {
         let clean_old = self.sanitize_value(old_value);
         let clean_new = self.sanitize_value(new_value);
         let clean_lr = self.sanitize_value(learning_rate.clamp(0.0, 1.0));
-        
+
         let weight_old = 1.0 - clean_lr;
         let result = clean_old * weight_old + clean_new * clean_lr;
         self.sanitize_value(result)
@@ -228,7 +233,7 @@ impl NumericalStabilityGuard {
     /// Comprehensive vector validation and cleaning
     pub fn validate_and_clean_vector(&mut self, values: &mut Vec<f32>) -> bool {
         let mut had_issues = false;
-        
+
         for value in values.iter_mut() {
             let original = *value;
             *value = self.sanitize_value(original);
@@ -236,7 +241,7 @@ impl NumericalStabilityGuard {
                 had_issues = true;
             }
         }
-        
+
         had_issues
     }
 
@@ -260,8 +265,10 @@ impl StabilityStats {
 
     pub fn print_summary(&self) {
         if self.has_issues() {
-            println!("Numerical stability recoveries: {} (NaN: {}, Inf: {})", 
-                     self.recovery_count, self.nan_count, self.inf_count);
+            println!(
+                "Numerical stability recoveries: {} (NaN: {}, Inf: {})",
+                self.recovery_count, self.nan_count, self.inf_count
+            );
         }
     }
 }
@@ -283,7 +290,7 @@ mod tests {
         let mut guard = NumericalStabilityGuard::default();
         let pos_inf = guard.sanitize_value(f32::INFINITY);
         let neg_inf = guard.sanitize_value(f32::NEG_INFINITY);
-        
+
         assert_eq!(pos_inf, guard.max_value);
         assert_eq!(neg_inf, guard.min_value);
         assert_eq!(guard.inf_count, 2);
@@ -292,15 +299,15 @@ mod tests {
     #[test]
     fn test_safe_divide() {
         let mut guard = NumericalStabilityGuard::default();
-        
+
         // Normal division
         assert_eq!(guard.safe_divide(6.0, 2.0), 3.0);
-        
+
         // Division by zero
         let result = guard.safe_divide(5.0, 0.0);
         assert!(result > 0.0);
         assert_eq!(guard.recovery_count, 1);
-        
+
         // Zero by zero
         guard.reset_counters();
         let result = guard.safe_divide(0.0, 0.0);
@@ -311,10 +318,10 @@ mod tests {
     #[test]
     fn test_safe_mse() {
         let mut guard = NumericalStabilityGuard::default();
-        
+
         let original = vec![1.0, 2.0, 3.0];
         let reconstructed = vec![1.1, 1.9, 3.1];
-        
+
         let mse = guard.safe_mse(&original, &reconstructed);
         assert!(mse >= 0.0);
         assert!(mse.is_finite());
@@ -323,10 +330,10 @@ mod tests {
     #[test]
     fn test_safe_mse_with_nan() {
         let mut guard = NumericalStabilityGuard::default();
-        
+
         let original = vec![1.0, f32::NAN, 3.0];
         let reconstructed = vec![1.1, 2.0, f32::INFINITY];
-        
+
         let mse = guard.safe_mse(&original, &reconstructed);
         assert!(mse >= 0.0);
         assert!(mse.is_finite());
@@ -336,12 +343,12 @@ mod tests {
     #[test]
     fn test_safe_mean() {
         let mut guard = NumericalStabilityGuard::default();
-        
+
         // Normal case
         let values = vec![1.0, 2.0, 3.0];
         let mean = guard.safe_mean(&values);
         assert_eq!(mean, 2.0);
-        
+
         // With NaN
         let values_with_nan = vec![1.0, f32::NAN, 3.0];
         let mean = guard.safe_mean(&values_with_nan);
@@ -352,14 +359,14 @@ mod tests {
     #[test]
     fn test_safe_weighted_update() {
         let mut guard = NumericalStabilityGuard::default();
-        
+
         let old = 1.0;
         let new = 3.0;
         let lr = 0.5;
-        
+
         let result = guard.safe_weighted_update(old, new, lr);
         assert_eq!(result, 2.0); // (1.0 * 0.5) + (3.0 * 0.5)
-        
+
         // With NaN inputs
         let result = guard.safe_weighted_update(f32::NAN, 3.0, 0.5);
         assert!(result.is_finite());
@@ -369,7 +376,7 @@ mod tests {
     #[test]
     fn test_is_stable() {
         let guard = NumericalStabilityGuard::default();
-        
+
         assert!(guard.is_stable(&vec![1.0, 2.0, 3.0]));
         assert!(!guard.is_stable(&vec![1.0, f32::NAN, 3.0]));
         assert!(!guard.is_stable(&vec![1.0, f32::INFINITY, 3.0]));

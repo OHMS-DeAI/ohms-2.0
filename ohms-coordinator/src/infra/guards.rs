@@ -1,7 +1,7 @@
-use ic_cdk::api::{caller, time};
 use candid::Principal;
-use std::collections::HashMap;
+use ic_cdk::api::{caller, time};
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 pub struct Guards;
 
@@ -13,16 +13,19 @@ impl Guards {
         }
         Ok(())
     }
-    
+
     pub fn validate_msg_id(msg_id: &str) -> Result<(), String> {
         if msg_id.is_empty() || msg_id.len() > 64 {
             return Err("Invalid msg_id format".to_string());
         }
-        
-        if !msg_id.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+
+        if !msg_id
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        {
             return Err("msg_id contains invalid characters".to_string());
         }
-        
+
         Ok(())
     }
 }

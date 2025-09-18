@@ -15,10 +15,8 @@ impl Metrics {
             *metrics.entry(name.to_string()).or_insert(0) += 1;
         });
     }
-    
+
     pub fn get_counter(name: &str) -> u64 {
-        METRICS.with(|m| {
-            m.borrow().get(name).copied().unwrap_or(0)
-        })
+        METRICS.with(|m| m.borrow().get(name).copied().unwrap_or(0))
     }
 }

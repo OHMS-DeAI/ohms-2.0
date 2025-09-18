@@ -1,5 +1,7 @@
+use super::{
+    CodebookEntry, NumericalStabilityGuard, QuantizationIndices, VectorCodebooks, WeightMatrix,
+};
 use crate::Result;
-use super::{WeightMatrix, VectorCodebooks, QuantizationIndices, CodebookEntry, NumericalStabilityGuard};
 
 /// Fallback quantization strategies for edge cases
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -45,17 +47,13 @@ impl SubspaceStrategy {
             original_subspaces,
             original_codebook_l1,
             original_codebook_l2,
-            min_subspace_size: 2, // Minimum for mathematical stability
+            min_subspace_size: 2,       // Minimum for mathematical stability
             min_vectors_per_cluster: 3, // Minimum for meaningful clustering
         }
     }
 
     /// Determine optimal subspace configuration based on tensor dimensions and constraints
-    pub fn determine_config(
-        &self,
-        rows: usize,
-        cols: usize,
-    ) -> SubspaceConfig {
+    pub fn determine_config(&self, rows: usize, cols: usize) -> SubspaceConfig {
         // Handle degenerate cases first
         if rows == 0 || cols == 0 {
             return SubspaceConfig {
@@ -140,12 +138,12 @@ impl SubspaceStrategy {
         for num_subspaces in (2..=self.original_subspaces).rev() {
             if cols % num_subspaces == 0 {
                 let subspace_size = cols / num_subspaces;
-                
+
                 // Ensure subspace size meets minimum requirements
                 if subspace_size >= self.min_subspace_size {
                     // Calculate minimum vectors needed per cluster
                     let vectors_per_cluster = rows / self.original_codebook_l1;
-                    
+
                     if vectors_per_cluster >= self.min_vectors_per_cluster {
                         best_config = SubspaceConfig {
                             effective_subspaces: num_subspaces,
@@ -168,24 +166,40 @@ impl SubspaceStrategy {
     pub fn print_config(&self, config: &SubspaceConfig, rows: usize, cols: usize) {
         match config.strategy {
             QuantizationStrategy::ScalarQuantization => {
-                println!("🔧 NOVAQ: Using scalar quantization for {}×{} tensor (very small)", rows, cols);
+                println!(
+                    "🔧 NOVAQ: Using scalar quantization for {}×{} tensor (very small)",
+                    rows, cols
+                );
                 println!("   Codebook size: {} entries", config.codebook_size_l1);
-            },
+            }
             QuantizationStrategy::SingleSubspaceEnhanced => {
-                println!("🔧 NOVAQ: Using enhanced single-subspace for {}×{} tensor", rows, cols);
-                println!("   Enhanced codebook: L1={}, L2={}", config.codebook_size_l1, config.codebook_size_l2);
-            },
+                println!(
+                    "🔧 NOVAQ: Using enhanced single-subspace for {}×{} tensor",
+                    rows, cols
+                );
+                println!(
+                    "   Enhanced codebook: L1={}, L2={}",
+                    config.codebook_size_l1, config.codebook_size_l2
+                );
+            }
             QuantizationStrategy::MultiSubspace => {
                 if config.effective_subspaces != self.original_subspaces {
-                    println!("🔧 NOVAQ: Adjusted subspaces from {} to {} for {}×{} tensor", 
-                             self.original_subspaces, config.effective_subspaces, rows, cols);
+                    println!(
+                        "🔧 NOVAQ: Adjusted subspaces from {} to {} for {}×{} tensor",
+                        self.original_subspaces, config.effective_subspaces, rows, cols
+                    );
                 }
-                println!("   Subspace size: {}, Codebooks: L1={}, L2={}", 
-                         config.subspace_size, config.codebook_size_l1, config.codebook_size_l2);
-            },
+                println!(
+                    "   Subspace size: {}, Codebooks: L1={}, L2={}",
+                    config.subspace_size, config.codebook_size_l1, config.codebook_size_l2
+                );
+            }
             QuantizationStrategy::UniformDithered => {
-                println!("🔧 NOVAQ: Using uniform dithered quantization for {}×{} tensor", rows, cols);
-            },
+                println!(
+                    "🔧 NOVAQ: Using uniform dithered quantization for {}×{} tensor",
+                    rows, cols
+                );
+            }
         }
     }
 }
@@ -221,12 +235,18 @@ impl FallbackQuantizer {
 
         // Simple k-means for single codebook
         let l1_codebook = self.build_simple_codebook(&vectors, config.codebook_size_l1)?;
-        
+
         // Minimal residual codebook (mostly zeros for scalar case)
         let zero_vector = vec![0.0; cols];
         let l2_codebook = vec![
-            CodebookEntry { centroid: zero_vector.clone(), usage_count: 0 },
-            CodebookEntry { centroid: zero_vector, usage_count: 0 },
+            CodebookEntry {
+                centroid: zero_vector.clone(),
+                usage_count: 0,
+            },
+            CodebookEntry {
+                centroid: zero_vector,
+                usage_count: 0,
+            },
         ];
 
         // Assign indices
@@ -286,7 +306,8 @@ impl FallbackQuantizer {
 
             // Update step with stability protection
             for cluster_idx in 0..effective_k {
-                let cluster_vectors: Vec<&Vec<f32>> = vectors.iter()
+                let cluster_vectors: Vec<&Vec<f32>> = vectors
+                    .iter()
                     .enumerate()
                     .filter(|(idx, _)| assignments[*idx] == cluster_idx)
                     .map(|(_, vec)| vec)
@@ -304,11 +325,15 @@ impl FallbackQuantizer {
         // Create codebook entries
         let mut codebook = Vec::with_capacity(effective_k);
         for cluster_idx in 0..effective_k {
-            let usage_count = assignments.iter().filter(|&&idx| idx == cluster_idx).count();
-            
+            let usage_count = assignments
+                .iter()
+                .filter(|&&idx| idx == cluster_idx)
+                .count();
+
             // Ensure centroid is stable
-            self.stability_guard.sanitize_vector(&mut centroids[cluster_idx]);
-            
+            self.stability_guard
+                .sanitize_vector(&mut centroids[cluster_idx]);
+
             codebook.push(CodebookEntry {
                 centroid: centroids[cluster_idx].clone(),
                 usage_count,
@@ -319,7 +344,11 @@ impl FallbackQuantizer {
     }
 
     /// Find nearest centroid in raw centroid list
-    fn find_nearest_centroid_raw(&mut self, vector: &[f32], centroids: &[Vec<f32>]) -> (usize, f32) {
+    fn find_nearest_centroid_raw(
+        &mut self,
+        vector: &[f32],
+        centroids: &[Vec<f32>],
+    ) -> (usize, f32) {
         let mut min_distance = f32::INFINITY;
         let mut nearest_idx = 0;
 
@@ -335,8 +364,15 @@ impl FallbackQuantizer {
     }
 
     /// Find nearest centroid in codebook entries
-    fn find_nearest_centroid(&mut self, vector: &[f32], codebook: &[CodebookEntry]) -> (usize, f32) {
-        let centroids: Vec<Vec<f32>> = codebook.iter().map(|entry| entry.centroid.clone()).collect();
+    fn find_nearest_centroid(
+        &mut self,
+        vector: &[f32],
+        codebook: &[CodebookEntry],
+    ) -> (usize, f32) {
+        let centroids: Vec<Vec<f32>> = codebook
+            .iter()
+            .map(|entry| entry.centroid.clone())
+            .collect();
         self.find_nearest_centroid_raw(vector, &centroids)
     }
 
@@ -373,7 +409,7 @@ mod tests {
     fn test_scalar_config_for_small_tensor() {
         let strategy = SubspaceStrategy::new(4, 16, 4);
         let config = strategy.determine_config(8, 1); // 8x1 tensor
-        
+
         assert_eq!(config.strategy, QuantizationStrategy::ScalarQuantization);
         assert_eq!(config.effective_subspaces, 1);
         assert_eq!(config.subspace_size, 1);
@@ -384,8 +420,11 @@ mod tests {
     fn test_single_subspace_config() {
         let strategy = SubspaceStrategy::new(4, 16, 4);
         let config = strategy.determine_config(100, 3); // 100x3 tensor
-        
-        assert_eq!(config.strategy, QuantizationStrategy::SingleSubspaceEnhanced);
+
+        assert_eq!(
+            config.strategy,
+            QuantizationStrategy::SingleSubspaceEnhanced
+        );
         assert_eq!(config.effective_subspaces, 1);
         assert_eq!(config.subspace_size, 3);
         assert!(config.codebook_size_l1 >= 16); // Should be enhanced
@@ -395,7 +434,7 @@ mod tests {
     fn test_multi_subspace_config() {
         let strategy = SubspaceStrategy::new(4, 16, 4);
         let config = strategy.determine_config(1000, 16); // 1000x16 tensor
-        
+
         assert_eq!(config.strategy, QuantizationStrategy::MultiSubspace);
         assert!(config.effective_subspaces > 1);
         assert_eq!(config.subspace_size, 16 / config.effective_subspaces);
@@ -404,11 +443,11 @@ mod tests {
     #[test]
     fn test_degenerate_cases() {
         let strategy = SubspaceStrategy::new(4, 16, 4);
-        
+
         // Zero rows
         let config = strategy.determine_config(0, 10);
         assert_eq!(config.strategy, QuantizationStrategy::ScalarQuantization);
-        
+
         // Zero cols
         let config = strategy.determine_config(10, 0);
         assert_eq!(config.strategy, QuantizationStrategy::ScalarQuantization);
@@ -419,7 +458,7 @@ mod tests {
         let mut quantizer = FallbackQuantizer::new();
         let data = vec![1.0, 2.0, 3.0, 4.0];
         let weights = WeightMatrix::new(data, vec![2, 2], "test".to_string());
-        
+
         let config = SubspaceConfig {
             effective_subspaces: 1,
             subspace_size: 2,
@@ -428,10 +467,10 @@ mod tests {
             codebook_size_l2: 2,
             min_vectors_per_cluster: 1,
         };
-        
+
         let result = quantizer.scalar_quantize(&weights, &config);
         assert!(result.is_ok());
-        
+
         let (codebooks, indices) = result.unwrap();
         assert_eq!(codebooks.level1_codebooks.len(), 1);
         assert_eq!(indices.level1_indices.len(), 2);

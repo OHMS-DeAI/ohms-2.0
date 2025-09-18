@@ -1,25 +1,25 @@
 use crate::domain::*;
 use ic_cdk::api::time;
-use std::collections::HashMap;
 use std::cell::RefCell;
+use std::collections::HashMap;
 
+pub mod agent_spawning;
+pub mod autonomous_coord;
+pub mod dedup;
+pub mod econ_integration;
+pub mod instruction_analyzer;
+pub mod quota_manager;
 pub mod registry;
 pub mod routing;
-pub mod dedup;
-pub mod quota_manager;
-pub mod autonomous_coord;
-pub mod instruction_analyzer;
-pub mod agent_spawning;
-pub mod econ_integration;
 
+pub use agent_spawning::AgentSpawningService;
+pub use autonomous_coord::AutonomousCoordinationService;
+pub use dedup::DedupService;
+pub use econ_integration::EconIntegrationService;
+pub use instruction_analyzer::InstructionAnalyzerService;
+pub use quota_manager::QuotaManager;
 pub use registry::RegistryService;
 pub use routing::RoutingService;
-pub use dedup::DedupService;
-pub use quota_manager::QuotaManager;
-pub use autonomous_coord::AutonomousCoordinationService;
-pub use instruction_analyzer::InstructionAnalyzerService;
-pub use agent_spawning::AgentSpawningService;
-pub use econ_integration::EconIntegrationService;
 
 thread_local! {
     static STATE: RefCell<CoordinatorState> = RefCell::new(CoordinatorState::default());
@@ -37,7 +37,8 @@ pub struct CoordinatorState {
     pub config: CoordinatorConfig,
     // Autonomous coordination fields
     pub coordination_sessions: Option<HashMap<String, autonomous_coord::CoordinationSession>>,
-    pub agent_capability_profiles: Option<HashMap<String, autonomous_coord::AgentCapabilityProfile>>,
+    pub agent_capability_profiles:
+        Option<HashMap<String, autonomous_coord::AgentCapabilityProfile>>,
     pub agent_message_queues: Option<HashMap<String, Vec<autonomous_coord::AgentMessage>>>,
 }
 

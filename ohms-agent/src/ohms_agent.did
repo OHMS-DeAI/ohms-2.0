@@ -1,10 +1,10 @@
 type AgentConfig = record {
+  model_repo_canister_id : text;
   warm_set_target : float32;
   prefetch_depth : nat32;
   max_tokens : nat32;
   concurrency_limit : nat32;
   ttl_seconds : nat64;
-  model_repo_canister_id : text;
 };
 
 type DecodeParams = record {
@@ -38,7 +38,7 @@ type AgentHealth = record {
   last_inference_timestamp : nat64;
 };
 
-// Phase 2: Instruction Analysis and Agent Factory Types
+// Instruction Analysis and Agent Factory Types
 
 type SubscriptionTier = variant { Basic; Pro; Enterprise };
 type ComplexityLevel = variant { Simple; Moderate; Complex; Expert };
@@ -47,34 +47,34 @@ type ResponseStyle = variant { Concise; Detailed; Conversational; Technical };
 type DetailLevel = variant { Summary; Standard; Comprehensive; Expert };
 type CreativityLevel = variant { Conservative; Balanced; Creative; Experimental };
 type SafetyLevel = variant { Strict; Standard; Flexible; Experimental };
-type CapabilityCategory = variant { 
-  TextGeneration; 
-  CodeGeneration; 
-  DataAnalysis; 
-  ContentCreation; 
-  ProblemSolving; 
-  Coordination; 
-  Communication; 
-  Research; 
-  Planning; 
-  Execution; 
-  Custom : text 
+type CapabilityCategory = variant {
+  TextGeneration;
+  CodeGeneration;
+  DataAnalysis;
+  ContentCreation;
+  ProblemSolving;
+  Coordination;
+  Communication;
+  Research;
+  Planning;
+  Execution;
+  Custom : text
 };
 type CapabilityPriority = variant { Essential; Important; Helpful; Optional };
 type ModelPrecision = variant { FP32; FP16; INT8; INT4; Mixed };
 type ReasoningLevel = variant { Basic; Intermediate; Advanced; Expert };
 type CreativityRequirement = variant { None; Low; Medium; High };
-type AgentType = variant { 
-  GeneralAssistant; 
-  CodeAssistant; 
-  ContentCreator; 
-  DataAnalyst; 
-  ProblemSolver; 
-  Coordinator; 
-  Researcher; 
-  Planner; 
-  Executor; 
-  Custom : text 
+type AgentType = variant {
+  GeneralAssistant;
+  CodeAssistant;
+  ContentCreator;
+  DataAnalyst;
+  ProblemSolver;
+  Coordinator;
+  Researcher;
+  Planner;
+  Executor;
+  Custom : text
 };
 type CommunicationStyle = variant { Direct; Friendly; Professional; Technical; Conversational };
 type DecisionMakingStyle = variant { Conservative; Balanced; Aggressive; Collaborative };
@@ -83,13 +83,13 @@ type CoordinationType = variant { None; Sequential; Parallel; Collaborative; Hie
 type CommunicationProtocol = variant { Direct; Centralized; Broadcast; Hierarchical };
 type TaskDistributionStrategy = variant { RoundRobin; CapabilityBased; LoadBalanced; PriorityBased };
 type TaskPriority = variant { Low; Normal; High; Critical };
-type AgentStatus = variant { 
-  Creating; 
-  Ready; 
-  Active; 
-  Paused; 
-  Completed; 
-  Error : text 
+type AgentStatus = variant {
+  Creating;
+  Ready;
+  Active;
+  Paused;
+  Completed;
+  Error : text
 };
 
 type InstructionContext = record {
@@ -229,17 +229,6 @@ type AgentSummary = record {
   last_active : nat64;
 };
 
-type Result = variant { Ok; Err : text };
-type Result_1 = variant { Ok : AgentConfig; Err : text };
-type Result_2 = variant { Ok : InferenceResponse; Err : text };
-type Result_3 = variant { Ok : text; Err : text };
-type Result_4 = variant { Ok : nat32; Err : text };
-type Result_5 = variant { Ok : AnalyzedInstruction; Err : text };
-type Result_6 = variant { Ok : AgentTaskResult; Err : text };
-type Result_7 = variant { Ok : AgentStatusInfo; Err : text };
-type Result_8 = variant { Ok : vec AgentSummary; Err : text };
-
-// UI-compatible agent creation types
 type AgentCreationRequest = record {
   instruction : text;
   agent_count : opt nat32;
@@ -254,26 +243,63 @@ type AgentCreationResult = record {
   estimated_completion : opt nat64;
 };
 
+type NOVAQValidationResult = record {
+  compression_ratio : float32;
+  bit_accuracy : float32;
+  quality_score : float32;
+  passed : bool;
+  issues : vec text;
+};
+
+type NOVAQModelMeta = record {
+  target_bits : float32;
+  num_subspaces : nat32;
+  compression_ratio : float32;
+  bit_accuracy : float32;
+  quality_score : float32;
+  codebook_size_l1 : nat32;
+  codebook_size_l2 : nat32;
+  parameter_count : nat32;
+  checksum : text;
+};
+
+type Result_Empty = variant { Ok; Err : text };
+type Result_Config = variant { Ok : AgentConfig; Err : text };
+type Result_Inference = variant { Ok : InferenceResponse; Err : text };
+type Result_Text = variant { Ok : text; Err : text };
+type Result_Nat32 = variant { Ok : nat32; Err : text };
+type Result_Analyzed = variant { Ok : AnalyzedInstruction; Err : text };
+type Result_TaskResult = variant { Ok : AgentTaskResult; Err : text };
+type Result_Status = variant { Ok : AgentStatusInfo; Err : text };
+type Result_Summaries = variant { Ok : vec AgentSummary; Err : text };
+type Result_VecText = variant { Ok : vec text; Err : text };
 type Result_AgentCreation = variant { Ok : AgentCreationResult; Err : text };
+type Result_NOVAQValidation = variant { Ok : NOVAQValidationResult; Err : text };
+type Result_NOVAQMeta = variant { Ok : NOVAQModelMeta; Err : text };
+type Result_float64 = variant { Ok : float64; Err : text };
 
 service : {
-  bind_model : (text) -> (Result);
-  prefetch_next : (nat32) -> (Result_4);
-  clear_memory : () -> (Result);
-  get_config : () -> (Result_1) query;
-  get_memory_stats : () -> (Result_3) query;
-  get_loader_stats : () -> (Result_3) query;
+  bind_model : (text) -> (Result_Empty);
+  prefetch_next : (nat32) -> (Result_Nat32);
+  clear_memory : () -> (Result_Empty);
+  get_config : () -> (Result_Config) query;
+  get_memory_stats : () -> (Result_Text) query;
+  get_loader_stats : () -> (Result_Text) query;
   health : () -> (AgentHealth) query;
-  infer : (InferenceRequest) -> (Result_2);
-  set_config : (AgentConfig) -> (Result);
-  repo_canister : () -> (Result_3) query;
-  
-  // Phase 2: Instruction Analysis and Agent Factory
-  analyze_instruction : (UserInstruction) -> (Result_5);
-  create_agent : (UserInstruction) -> (Result_3);
-  create_coordinated_agents : (UserInstruction) -> (Result_8);
+  infer : (InferenceRequest) -> (Result_Inference);
+  set_config : (AgentConfig) -> (Result_Empty);
+  repo_canister : () -> (Result_Text) query;
+
+  analyze_instruction : (UserInstruction) -> (Result_Analyzed);
+  create_agent : (UserInstruction) -> (Result_Text);
+  create_coordinated_agents : (UserInstruction) -> (Result_VecText);
   create_agent_from_instruction : (AgentCreationRequest) -> (Result_AgentCreation);
-  execute_agent_task : (text, text) -> (Result_6);
-  get_agent_status : (text) -> (Result_7) query;
-  list_user_agents : (text) -> (Result_8) query;
+  execute_agent_task : (text, text) -> (Result_TaskResult);
+  get_agent_status : (text) -> (Result_Status) query;
+  list_user_agents : (text) -> (Result_Summaries) query;
+
+  validate_novaq_model : (text, vec nat8) -> (Result_NOVAQValidation);
+  extract_novaq_metadata : (vec nat8) -> (Result_NOVAQMeta) query;
+  is_novaq_model : (vec nat8) -> (bool) query;
+  get_novaq_quality_score : (vec nat8) -> (Result_float64) query;
 }

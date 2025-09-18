@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use candid::CandidType;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
@@ -25,8 +25,8 @@ pub struct RouteRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub enum RoutingMode {
-    Unicast,      // Route to single best agent
-    Broadcast,    // Route to multiple agents (K agents)
+    Unicast,       // Route to single best agent
+    Broadcast,     // Route to multiple agents (K agents)
     AgentSpawning, // Agent creation coordination
 }
 
@@ -95,10 +95,19 @@ pub struct DedupEntry {
 
 // Swarm/Hive policy
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
-pub enum SwarmTopology { Mesh, Hierarchical, Ring, Star }
+pub enum SwarmTopology {
+    Mesh,
+    Hierarchical,
+    Ring,
+    Star,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
-pub enum OrchestrationMode { Parallel, Sequential, Adaptive }
+pub enum OrchestrationMode {
+    Parallel,
+    Sequential,
+    Adaptive,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct SwarmPolicy {
@@ -110,7 +119,12 @@ pub struct SwarmPolicy {
 
 impl Default for SwarmPolicy {
     fn default() -> Self {
-        Self { topology: SwarmTopology::Mesh, mode: OrchestrationMode::Parallel, top_k: 3, window_ms: 100 }
+        Self {
+            topology: SwarmTopology::Mesh,
+            mode: OrchestrationMode::Parallel,
+            top_k: 3,
+            window_ms: 100,
+        }
     }
 }
 
@@ -120,7 +134,11 @@ pub struct CoordinatorConfig {
 }
 
 impl Default for CoordinatorConfig {
-    fn default() -> Self { Self { swarm: SwarmPolicy::default() } }
+    fn default() -> Self {
+        Self {
+            swarm: SwarmPolicy::default(),
+        }
+    }
 }
 
 // OHMS 2.0: Agent spawning and coordination types

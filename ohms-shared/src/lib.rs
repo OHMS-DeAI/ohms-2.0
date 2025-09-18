@@ -2,8 +2,8 @@
 // This module contains type definitions shared across all OHMS components
 
 pub mod communication;
-pub mod registry;
 pub mod novaq;
+pub mod registry;
 
 use candid::{CandidType, Deserialize};
 use serde::Serialize;
@@ -290,5 +290,5 @@ pub fn current_time_seconds() -> u64 {
 
 // Re-export all public types and functions
 pub use communication::*;
-pub use registry::*;
 pub use novaq::*;
+pub use registry::*;

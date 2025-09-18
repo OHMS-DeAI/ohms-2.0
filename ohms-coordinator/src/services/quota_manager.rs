@@ -1,8 +1,8 @@
+use crate::services::{with_state, with_state_mut};
+use candid::CandidType;
 use ic_cdk::api::time;
 use serde::{Deserialize, Serialize};
-use candid::CandidType;
 use std::collections::HashMap;
-use crate::services::{with_state, with_state_mut};
 
 /// Quota manager service for enforcing subscription limits
 pub struct QuotaManager;
@@ -75,7 +75,7 @@ impl QuotaManager {
         limits: QuotaLimits,
     ) -> Result<(), String> {
         let now = time();
-        
+
         let user_quota = UserQuota {
             principal_id: principal_id.clone(),
             subscription_tier,
@@ -102,23 +102,18 @@ impl QuotaManager {
         action: QuotaAction,
         amount: Option<u64>,
     ) -> Result<QuotaValidation, String> {
-        let mut user_quota = Self::get_user_quota(principal_id)
-            .ok_or("No quota found for user")?;
+        let mut user_quota = Self::get_user_quota(principal_id).ok_or("No quota found for user")?;
 
         // Reset monthly usage if needed
         Self::reset_monthly_usage_if_needed(&mut user_quota);
 
         let validation = match action {
-            QuotaAction::AgentCreation => {
-                Self::validate_agent_creation_quota(&user_quota)
-            },
+            QuotaAction::AgentCreation => Self::validate_agent_creation_quota(&user_quota),
             QuotaAction::TokenUsage => {
                 let tokens = amount.ok_or("Token amount required")?;
                 Self::validate_token_usage_quota(&user_quota, tokens)
-            },
-            QuotaAction::Inference => {
-                Self::validate_inference_quota(&user_quota)
-            },
+            }
+            QuotaAction::Inference => Self::validate_inference_quota(&user_quota),
         };
 
         // Update usage if validation passed
@@ -132,13 +127,18 @@ impl QuotaManager {
 
     /// Validate agent creation quota
     fn validate_agent_creation_quota(user_quota: &UserQuota) -> QuotaValidation {
-        if user_quota.current_usage.agents_created_this_month >= user_quota.limits.monthly_agent_creations {
+        if user_quota.current_usage.agents_created_this_month
+            >= user_quota.limits.monthly_agent_creations
+        {
             return QuotaValidation {
                 allowed: false,
                 reason: Some("Monthly agent creation limit reached".to_string()),
                 remaining_quota: Some(QuotaRemaining {
                     agents_remaining: 0,
-                    tokens_remaining: user_quota.limits.token_limit.saturating_sub(user_quota.current_usage.tokens_used_this_month),
+                    tokens_remaining: user_quota
+                        .limits
+                        .token_limit
+                        .saturating_sub(user_quota.current_usage.tokens_used_this_month),
                     inferences_remaining: 0,
                 }),
             };
@@ -148,23 +148,38 @@ impl QuotaManager {
             allowed: true,
             reason: None,
             remaining_quota: Some(QuotaRemaining {
-                agents_remaining: user_quota.limits.monthly_agent_creations.saturating_sub(user_quota.current_usage.agents_created_this_month),
-                tokens_remaining: user_quota.limits.token_limit.saturating_sub(user_quota.current_usage.tokens_used_this_month),
+                agents_remaining: user_quota
+                    .limits
+                    .monthly_agent_creations
+                    .saturating_sub(user_quota.current_usage.agents_created_this_month),
+                tokens_remaining: user_quota
+                    .limits
+                    .token_limit
+                    .saturating_sub(user_quota.current_usage.tokens_used_this_month),
                 inferences_remaining: 0,
             }),
         }
     }
 
     /// Validate token usage quota
-    fn validate_token_usage_quota(user_quota: &UserQuota, tokens_requested: u64) -> QuotaValidation {
-        let remaining_tokens = user_quota.limits.token_limit.saturating_sub(user_quota.current_usage.tokens_used_this_month);
-        
+    fn validate_token_usage_quota(
+        user_quota: &UserQuota,
+        tokens_requested: u64,
+    ) -> QuotaValidation {
+        let remaining_tokens = user_quota
+            .limits
+            .token_limit
+            .saturating_sub(user_quota.current_usage.tokens_used_this_month);
+
         if tokens_requested > remaining_tokens {
             return QuotaValidation {
                 allowed: false,
                 reason: Some("Insufficient token quota".to_string()),
                 remaining_quota: Some(QuotaRemaining {
-                    agents_remaining: user_quota.limits.monthly_agent_creations.saturating_sub(user_quota.current_usage.agents_created_this_month),
+                    agents_remaining: user_quota
+                        .limits
+                        .monthly_agent_creations
+                        .saturating_sub(user_quota.current_usage.agents_created_this_month),
                     tokens_remaining: remaining_tokens,
                     inferences_remaining: 0,
                 }),
@@ -175,7 +190,10 @@ impl QuotaManager {
             allowed: true,
             reason: None,
             remaining_quota: Some(QuotaRemaining {
-                agents_remaining: user_quota.limits.monthly_agent_creations.saturating_sub(user_quota.current_usage.agents_created_this_month),
+                agents_remaining: user_quota
+                    .limits
+                    .monthly_agent_creations
+                    .saturating_sub(user_quota.current_usage.agents_created_this_month),
                 tokens_remaining: remaining_tokens,
                 inferences_remaining: 0,
             }),
@@ -189,8 +207,14 @@ impl QuotaManager {
             allowed: true,
             reason: None,
             remaining_quota: Some(QuotaRemaining {
-                agents_remaining: user_quota.limits.monthly_agent_creations.saturating_sub(user_quota.current_usage.agents_created_this_month),
-                tokens_remaining: user_quota.limits.token_limit.saturating_sub(user_quota.current_usage.tokens_used_this_month),
+                agents_remaining: user_quota
+                    .limits
+                    .monthly_agent_creations
+                    .saturating_sub(user_quota.current_usage.agents_created_this_month),
+                tokens_remaining: user_quota
+                    .limits
+                    .token_limit
+                    .saturating_sub(user_quota.current_usage.tokens_used_this_month),
                 inferences_remaining: 0,
             }),
         }
@@ -201,30 +225,30 @@ impl QuotaManager {
         match action {
             QuotaAction::AgentCreation => {
                 user_quota.current_usage.agents_created_this_month += 1;
-            },
+            }
             QuotaAction::TokenUsage => {
                 if let Some(tokens) = amount {
                     user_quota.current_usage.tokens_used_this_month += tokens;
                 }
-            },
+            }
             QuotaAction::Inference => {
                 user_quota.current_usage.inferences_this_month += 1;
-            },
+            }
         }
         user_quota.last_updated = time();
     }
 
     /// Get user quota
     pub fn get_user_quota(principal_id: &str) -> Option<UserQuota> {
-        with_state(|state| {
-            state.user_quotas.get(principal_id).cloned()
-        })
+        with_state(|state| state.user_quotas.get(principal_id).cloned())
     }
 
     /// Store user quota
     fn store_user_quota(user_quota: UserQuota) {
         with_state_mut(|state| {
-            state.user_quotas.insert(user_quota.principal_id.clone(), user_quota);
+            state
+                .user_quotas
+                .insert(user_quota.principal_id.clone(), user_quota);
         });
     }
 
@@ -232,7 +256,7 @@ impl QuotaManager {
     fn reset_monthly_usage_if_needed(user_quota: &mut UserQuota) {
         let now = time();
         let last_reset = user_quota.current_usage.last_reset_date;
-        
+
         // Check if we're in a new month (simple check: 30 days passed)
         if now - last_reset > 30 * 24 * 60 * 60 * 1_000_000_000 {
             user_quota.current_usage = QuotaUsage {
@@ -246,8 +270,7 @@ impl QuotaManager {
 
     /// Get user usage metrics
     pub fn get_user_usage(principal_id: &str) -> Option<QuotaUsage> {
-        Self::get_user_quota(principal_id)
-            .map(|quota| quota.current_usage)
+        Self::get_user_quota(principal_id).map(|quota| quota.current_usage)
     }
 
     /// Update user quota limits (for subscription changes)
@@ -266,15 +289,13 @@ impl QuotaManager {
 
     /// List all user quotas (admin only)
     pub fn list_all_user_quotas() -> Vec<UserQuota> {
-        with_state(|state| {
-            state.user_quotas.values().cloned().collect()
-        })
+        with_state(|state| state.user_quotas.values().cloned().collect())
     }
 
     /// Get quota statistics (admin only)
     pub fn get_quota_stats() -> QuotaStats {
         let quotas = Self::list_all_user_quotas();
-        
+
         let mut stats = QuotaStats {
             total_users: quotas.len() as u32,
             tier_distribution: HashMap::new(),

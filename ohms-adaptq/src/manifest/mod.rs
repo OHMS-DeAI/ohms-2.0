@@ -2,9 +2,9 @@
 // Handles NOVAQ compressed model artifacts and deployment manifests
 
 use crate::novaq::NOVAQModel;
+use chrono;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use chrono;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Manifest {
@@ -18,13 +18,13 @@ pub struct Manifest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NOVAQMetadata {
-    pub target_bits: f32,           // 1.5 for NOVAQ
-    pub num_subspaces: usize,       // Multi-stage codebooks
-    pub compression_ratio: f32,     // 93-100x
-    pub bit_accuracy: f32,          // >99%
-    pub quality_score: f32,         // Overall quality metric
-    pub codebook_size_l1: usize,    // Level 1 codebook size
-    pub codebook_size_l2: usize,    // Level 2 codebook size
+    pub target_bits: f32,        // 1.5 for NOVAQ
+    pub num_subspaces: usize,    // Multi-stage codebooks
+    pub compression_ratio: f32,  // 93-100x
+    pub bit_accuracy: f32,       // >99%
+    pub quality_score: f32,      // Overall quality metric
+    pub codebook_size_l1: usize, // Level 1 codebook size
+    pub codebook_size_l2: usize, // Level 2 codebook size
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,10 +50,14 @@ pub struct ManifestBuilder;
 
 impl ManifestBuilder {
     /// Create manifest from NOVAQ result
-    pub fn from_novaq_model(model: &NOVAQModel, model_id: &str, version: &str) -> crate::Result<Manifest> {
+    pub fn from_novaq_model(
+        model: &NOVAQModel,
+        model_id: &str,
+        version: &str,
+    ) -> crate::Result<Manifest> {
         // Serialize the model to get the actual data size
         let model_data = bincode::serialize(model)?;
-        
+
         let chunk = ChunkInfo {
             id: "novaq_compressed".to_string(),
             offset: 0,
@@ -153,7 +157,7 @@ impl ManifestBuilder {
         ohms_canister: &str,
     ) -> crate::Result<serde_json::Value> {
         let model_data = bincode::serialize(model)?;
-        
+
         Ok(serde_json::json!({
             "model_id": model_id,
             "admin_principal": admin_principal,

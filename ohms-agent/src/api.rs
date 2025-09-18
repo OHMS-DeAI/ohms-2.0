@@ -1,10 +1,14 @@
-use ic_cdk_macros::*;
-use crate::domain::{AgentConfig, AgentHealth, InferenceRequest, InferenceResponse};
 use crate::domain::instruction::*;
-use crate::services::{BindingService, InferenceService, MemoryService, CacheService, InstructionAnalyzer, AgentFactory, with_state, AgentTaskResult, AgentStatusInfo, AgentSummary, AgentTask, ModelRepoClient, NOVAQValidationResult, NOVAQModelMeta};
-use crate::services::agent_factory::TaskPriority;
-use crate::infra::{Guards, Metrics};
-use std::collections::HashMap;
+use crate::domain::{
+    AgentConfig, AgentHealth, AgentStatusInfo, AgentSummary, AgentTask, AgentTaskResult,
+    InferenceRequest, InferenceResponse, TaskPriority,
+};
+use crate::infra::Guards;
+use crate::services::{
+    with_state, AgentFactory, BindingService, CacheService, InferenceService, InstructionAnalyzer,
+    MemoryService, ModelRepoClient, NOVAQModelMeta, NOVAQValidationResult,
+};
+use ic_cdk_macros::*;
 
 #[update]
 async fn bind_model(model_id: String) -> Result<(), String> {
@@ -12,15 +16,14 @@ async fn bind_model(model_id: String) -> Result<(), String> {
     BindingService::bind_model(model_id).await
 }
 
-#[update] 
+#[update]
 async fn infer(request: InferenceRequest) -> Result<InferenceResponse, String> {
     Guards::require_caller_authenticated()?;
     Guards::rate_limit_check()?;
     Guards::validate_prompt_length(&request.prompt)?;
     Guards::validate_msg_id(&request.msg_id)?;
-    
+
     let result = InferenceService::process_inference(request).await?;
-    Metrics::increment_inference_count();
     Ok(result)
 }
 
@@ -44,7 +47,9 @@ fn health() -> AgentHealth {
 #[query]
 fn repo_canister() -> Result<String, String> {
     Guards::require_caller_authenticated()?;
-    Ok(crate::services::with_state(|s| s.config.model_repo_canister_id.clone()))
+    Ok(crate::services::with_state(|s| {
+        s.config.model_repo_canister_id.clone()
+    }))
 }
 
 #[update]
@@ -57,7 +62,11 @@ async fn prefetch_next(n: u32) -> Result<u32, String> {
 fn get_loader_stats() -> Result<String, String> {
     let (bound, loaded, total, cache_util, cache_entries) = with_state(|s| {
         let bound = s.binding.is_some();
-        let (loaded, total) = s.binding.as_ref().map(|b| (b.chunks_loaded, b.total_chunks)).unwrap_or((0,0));
+        let (loaded, total) = s
+            .binding
+            .as_ref()
+            .map(|b| (b.chunks_loaded, b.total_chunks))
+            .unwrap_or((0, 0));
         let util = CacheService::get_utilization();
         let entries = s.cache_entries.len();
         (bound, loaded, total, util, entries)
@@ -68,7 +77,8 @@ fn get_loader_stats() -> Result<String, String> {
         "total_chunks": total,
         "cache_utilization": cache_util,
         "cache_entries": cache_entries
-    }).to_string())
+    })
+    .to_string())
 }
 
 #[query]
@@ -95,14 +105,14 @@ async fn analyze_instruction(instruction: UserInstruction) -> Result<AnalyzedIns
 #[update]
 async fn create_agent(instruction: UserInstruction) -> Result<String, String> {
     Guards::require_caller_authenticated()?;
-    
+
     // Analyze the instruction
     let analysis = InstructionAnalyzer::analyze_instruction(instruction.clone())?;
-    
+
     // Create the agent
     let user_id = instruction.user_id.clone();
     let agent = AgentFactory::create_agent(user_id, instruction, analysis).await?;
-    
+
     Ok(agent.agent_id)
 }
 
@@ -124,9 +134,11 @@ pub struct AgentCreationResult {
 }
 
 #[update]
-async fn create_agent_from_instruction(request: AgentCreationRequest) -> Result<AgentCreationResult, String> {
+async fn create_agent_from_instruction(
+    request: AgentCreationRequest,
+) -> Result<AgentCreationResult, String> {
     Guards::require_caller_authenticated()?;
-    
+
     // Convert to UserInstruction format
     let user_instruction = UserInstruction {
         instruction_text: request.instruction,
@@ -152,30 +164,37 @@ async fn create_agent_from_instruction(request: AgentCreationRequest) -> Result<
             language: "en".to_string(),
         }),
     };
-    
+
     // Analyze the instruction
     let analysis = InstructionAnalyzer::analyze_instruction(user_instruction.clone())?;
-    
+
     // Create the agent(s)
     let agent_count = request.agent_count.unwrap_or(1);
     let user_id = user_instruction.user_id.clone();
-    
+
     if agent_count == 1 {
         let agent = AgentFactory::create_agent(user_id, user_instruction, analysis).await?;
         Ok(AgentCreationResult {
             agent_id: agent.agent_id,
             status: "Ready".to_string(),
-            capabilities: request.capabilities.unwrap_or_else(|| vec!["General Assistant".to_string()]),
+            capabilities: request
+                .capabilities
+                .unwrap_or_else(|| vec!["General Assistant".to_string()]),
             estimated_completion: Some(ic_cdk::api::time() + 30_000_000_000), // 30 seconds from now
         })
     } else {
-        let agents = AgentFactory::create_coordinated_agents(user_id, user_instruction, analysis).await?;
+        let agents =
+            AgentFactory::create_coordinated_agents(user_id, user_instruction, analysis).await?;
         // Return first agent ID (coordinator)
-        let primary_agent = agents.first().ok_or("Failed to create coordinated agents")?;
+        let primary_agent = agents
+            .first()
+            .ok_or("Failed to create coordinated agents")?;
         Ok(AgentCreationResult {
             agent_id: primary_agent.agent_id.clone(),
             status: "Ready".to_string(),
-            capabilities: request.capabilities.unwrap_or_else(|| vec!["Coordinated Team".to_string()]),
+            capabilities: request
+                .capabilities
+                .unwrap_or_else(|| vec!["Coordinated Team".to_string()]),
             estimated_completion: Some(ic_cdk::api::time() + 60_000_000_000), // 60 seconds for coordinated
         })
     }
@@ -184,29 +203,32 @@ async fn create_agent_from_instruction(request: AgentCreationRequest) -> Result<
 #[update]
 async fn create_coordinated_agents(instruction: UserInstruction) -> Result<Vec<String>, String> {
     Guards::require_caller_authenticated()?;
-    
+
     // Analyze the instruction
     let analysis = InstructionAnalyzer::analyze_instruction(instruction.clone())?;
-    
+
     // Create coordinated agents
     let user_id = instruction.user_id.clone();
     let agents = AgentFactory::create_coordinated_agents(user_id, instruction, analysis).await?;
-    
+
     Ok(agents.into_iter().map(|a| a.agent_id).collect())
 }
 
 #[update]
-async fn execute_agent_task(agent_id: String, task_description: String) -> Result<AgentTaskResult, String> {
+async fn execute_agent_task(
+    agent_id: String,
+    task_description: String,
+) -> Result<AgentTaskResult, String> {
     Guards::require_caller_authenticated()?;
-    
+
     let task = AgentTask {
         task_id: format!("task-{}", ic_cdk::api::time()),
         description: task_description,
         priority: TaskPriority::Normal,
         deadline: None,
-        context: HashMap::new(),
+        context: Vec::new(),
     };
-    
+
     AgentFactory::execute_task(&agent_id, task).await
 }
 
@@ -225,7 +247,10 @@ async fn list_user_agents(user_id: String) -> Result<Vec<AgentSummary>, String> 
 // NOVAQ Validation APIs
 
 #[update]
-async fn validate_novaq_model(model_id: String, model_data: Vec<u8>) -> Result<NOVAQValidationResult, String> {
+async fn validate_novaq_model(
+    model_id: String,
+    model_data: Vec<u8>,
+) -> Result<NOVAQValidationResult, String> {
     Guards::require_caller_authenticated()?;
     ModelRepoClient::validate_novaq_model(&model_id, &model_data).await
 }

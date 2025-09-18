@@ -1,8 +1,8 @@
 use crate::domain::*;
 use crate::services::{with_state, with_state_mut};
+use candid::CandidType;
 use ic_cdk::api::time;
 use serde::{Deserialize, Serialize};
-use candid::CandidType;
 use std::collections::HashMap;
 
 /// Autonomous coordination service for self-coordinating multi-agent networks
@@ -193,7 +193,10 @@ impl AutonomousCoordinationService {
             if state.coordination_sessions.is_none() {
                 state.coordination_sessions = Some(HashMap::new());
             }
-            state.coordination_sessions.as_mut().unwrap()
+            state
+                .coordination_sessions
+                .as_mut()
+                .unwrap()
                 .insert(session_id, session.clone());
         });
 
@@ -244,10 +247,10 @@ impl AutonomousCoordinationService {
         priority: MessagePriority,
     ) -> Result<String, String> {
         let task_id = format!("task_{}", time());
-        
+
         // Find available agents with required capabilities
         let suitable_agents = Self::find_suitable_agents(&required_capabilities).await?;
-        
+
         if suitable_agents.is_empty() {
             return Err("No suitable agents available for task".to_string());
         }
@@ -287,7 +290,7 @@ impl AutonomousCoordinationService {
                     })
                     .cloned()
                     .collect();
-                
+
                 Ok(suitable)
             } else {
                 Ok(Vec::new())
@@ -313,8 +316,8 @@ impl AutonomousCoordinationService {
 
             // Performance metrics (40% weight)
             score += agent.performance_metrics.success_rate * 0.4;
-            
-            // Availability (30% weight)  
+
+            // Availability (30% weight)
             let availability_score = match agent.performance_metrics.current_load {
                 load if load < 0.3 => 1.0,
                 load if load < 0.7 => 0.7,
@@ -345,10 +348,7 @@ impl AutonomousCoordinationService {
     }
 
     /// Route message to specific agent
-    async fn route_message_to_agent(
-        agent_id: String,
-        message: AgentMessage,
-    ) -> Result<(), String> {
+    async fn route_message_to_agent(agent_id: String, message: AgentMessage) -> Result<(), String> {
         // Store message in agent's message queue
         with_state_mut(|state| {
             if state.agent_message_queues.is_none() {
@@ -357,7 +357,7 @@ impl AutonomousCoordinationService {
 
             let queues = state.agent_message_queues.as_mut().unwrap();
             let queue = queues.entry(agent_id).or_insert_with(Vec::new);
-            
+
             // Prevent message queue overflow (prevent resource exhaustion)
             const MAX_QUEUE_SIZE: usize = 100;
             if queue.len() >= MAX_QUEUE_SIZE {
@@ -378,13 +378,14 @@ impl AutonomousCoordinationService {
         collaboration_type: CoordinationType,
     ) -> Result<String, String> {
         let resource_constraints = ResourceConstraints {
-            max_execution_time_ms: 1800000, // 30 minutes
+            max_execution_time_ms: 1800000,            // 30 minutes
             max_memory_usage_bytes: 1024 * 1024 * 512, // 512MB
             max_concurrent_tasks: 10,
             allowed_capabilities: None,
         };
 
-        let coordinator_agent = participating_agents.first()
+        let coordinator_agent = participating_agents
+            .first()
             .ok_or("At least one agent required for collaboration")?
             .clone();
 
@@ -393,7 +394,8 @@ impl AutonomousCoordinationService {
             participating_agents,
             coordinator_agent,
             resource_constraints,
-        ).await?;
+        )
+        .await?;
 
         Ok(session.session_id)
     }
@@ -401,7 +403,9 @@ impl AutonomousCoordinationService {
     /// Get coordination session status
     pub fn get_coordination_session(session_id: String) -> Option<CoordinationSession> {
         with_state(|state| {
-            state.coordination_sessions.as_ref()
+            state
+                .coordination_sessions
+                .as_ref()
                 .and_then(|sessions| sessions.get(&session_id))
                 .cloned()
         })
@@ -435,7 +439,10 @@ impl AutonomousCoordinationService {
                 },
             };
 
-            state.agent_capability_profiles.as_mut().unwrap()
+            state
+                .agent_capability_profiles
+                .as_mut()
+                .unwrap()
                 .insert(agent_id, profile);
         });
 
@@ -462,25 +469,40 @@ impl AutonomousCoordinationService {
     /// Get autonomous coordination statistics
     pub fn get_coordination_stats() -> CoordinationStats {
         with_state(|state| {
-            let total_sessions = state.coordination_sessions.as_ref()
+            let total_sessions = state
+                .coordination_sessions
+                .as_ref()
                 .map(|s| s.len() as u32)
                 .unwrap_or(0);
 
-            let active_sessions = state.coordination_sessions.as_ref()
+            let active_sessions = state
+                .coordination_sessions
+                .as_ref()
                 .map(|sessions| {
-                    sessions.values()
-                        .filter(|s| matches!(s.status, SessionStatus::Active | SessionStatus::Coordinating))
+                    sessions
+                        .values()
+                        .filter(|s| {
+                            matches!(
+                                s.status,
+                                SessionStatus::Active | SessionStatus::Coordinating
+                            )
+                        })
                         .count() as u32
                 })
                 .unwrap_or(0);
 
-            let total_agents = state.agent_capability_profiles.as_ref()
+            let total_agents = state
+                .agent_capability_profiles
+                .as_ref()
                 .map(|p| p.len() as u32)
                 .unwrap_or(0);
 
-            let available_agents = state.agent_capability_profiles.as_ref()
+            let available_agents = state
+                .agent_capability_profiles
+                .as_ref()
                 .map(|profiles| {
-                    profiles.values()
+                    profiles
+                        .values()
                         .filter(|p| matches!(p.availability_status, AvailabilityStatus::Available))
                         .count() as u32
                 })

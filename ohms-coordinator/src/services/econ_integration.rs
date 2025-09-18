@@ -1,9 +1,9 @@
 use crate::domain::*;
-use crate::services::{with_state_mut};
-use ic_cdk::api::{call, time};
-use candid::Principal;
-use serde::{Deserialize, Serialize};
+use crate::services::with_state_mut;
 use candid::CandidType;
+use candid::Principal;
+use ic_cdk::api::{call, time};
+use serde::{Deserialize, Serialize};
 
 /// Economics canister integration service for OHMS 2.0 subscription management
 pub struct EconIntegrationService;
@@ -60,11 +60,14 @@ impl EconIntegrationService {
     /// Get the economics canister ID
     fn get_econ_canister_id() -> Principal {
         // Use the actual economics canister ID from deployment
-        Principal::from_text("tetse-piaaa-aaaao-qkeyq-cai").unwrap_or_else(|_| Principal::anonymous())
+        Principal::from_text("tetse-piaaa-aaaao-qkeyq-cai")
+            .unwrap_or_else(|_| Principal::anonymous())
     }
 
     /// Validate user subscription and quota for agent creation
-    pub async fn validate_agent_creation_quota(user_principal: &str) -> Result<QuotaValidation, String> {
+    pub async fn validate_agent_creation_quota(
+        user_principal: &str,
+    ) -> Result<QuotaValidation, String> {
         let econ_canister_id = Self::get_econ_canister_id();
 
         // Make cross-canister call to validate quota
@@ -72,7 +75,9 @@ impl EconIntegrationService {
             econ_canister_id,
             "validate_agent_creation_quota",
             (user_principal.to_string(),),
-        ).await {
+        )
+        .await
+        {
             Ok((Ok(validation),)) => Ok(validation),
             Ok((Err(e),)) => Err(format!("Economics canister error: {}", e)),
             Err(e) => Err(format!("Cross-canister call failed: {:?}", e)),
@@ -80,7 +85,10 @@ impl EconIntegrationService {
     }
 
     /// Validate token usage quota for inference
-    pub async fn validate_token_usage_quota(user_principal: &str, tokens: u64) -> Result<QuotaValidation, String> {
+    pub async fn validate_token_usage_quota(
+        user_principal: &str,
+        tokens: u64,
+    ) -> Result<QuotaValidation, String> {
         let econ_canister_id = Self::get_econ_canister_id();
 
         // Make cross-canister call to validate token usage
@@ -88,7 +96,9 @@ impl EconIntegrationService {
             econ_canister_id,
             "validate_token_usage_quota",
             (user_principal.to_string(), tokens),
-        ).await {
+        )
+        .await
+        {
             Ok((Ok(validation),)) => Ok(validation),
             Ok((Err(e),)) => Err(format!("Economics canister error: {}", e)),
             Err(e) => Err(format!("Cross-canister call failed: {:?}", e)),
@@ -96,30 +106,38 @@ impl EconIntegrationService {
     }
 
     /// Get user subscription details
-    pub async fn get_user_subscription(user_principal: &str) -> Result<Option<UserSubscription>, String> {
+    pub async fn get_user_subscription(
+        user_principal: &str,
+    ) -> Result<Option<UserSubscription>, String> {
         let econ_canister_id = Self::get_econ_canister_id();
-        
+
         // Make cross-canister call to get subscription
         match call::call::<_, (Option<UserSubscription>,)>(
             econ_canister_id,
             "get_user_subscription",
             (Some(user_principal.to_string()),),
-        ).await {
+        )
+        .await
+        {
             Ok((subscription,)) => Ok(subscription),
             Err(e) => Err(format!("Cross-canister call failed: {:?}", e)),
         }
     }
 
     /// Create or get free subscription for new users
-    pub async fn get_or_create_free_subscription(user_principal: &str) -> Result<UserSubscription, String> {
+    pub async fn get_or_create_free_subscription(
+        user_principal: &str,
+    ) -> Result<UserSubscription, String> {
         let econ_canister_id = Self::get_econ_canister_id();
-        
+
         // Make cross-canister call to create/get free subscription
         match call::call::<_, (Result<UserSubscription, String>,)>(
             econ_canister_id,
             "get_or_create_free_subscription",
             (user_principal.to_string(),),
-        ).await {
+        )
+        .await
+        {
             Ok((Ok(subscription),)) => Ok(subscription),
             Ok((Err(e),)) => Err(format!("Economics canister error: {}", e)),
             Err(e) => Err(format!("Cross-canister call failed: {:?}", e)),
@@ -129,7 +147,7 @@ impl EconIntegrationService {
     /// Update local quota cache with economics data
     pub async fn sync_user_quota_from_economics(user_principal: &str) -> Result<(), String> {
         let subscription = Self::get_user_subscription(user_principal).await?;
-        
+
         match subscription {
             Some(sub) => {
                 // Convert economics subscription to local quota format
@@ -141,9 +159,15 @@ impl EconIntegrationService {
                         monthly_agent_creations: sub.tier.monthly_agent_creations,
                         token_limit: sub.tier.token_limit,
                         inference_rate: match sub.tier.inference_rate {
-                            InferenceRate::Standard => crate::services::quota_manager::InferenceRate::Standard,
-                            InferenceRate::Priority => crate::services::quota_manager::InferenceRate::Priority,
-                            InferenceRate::Premium => crate::services::quota_manager::InferenceRate::Premium,
+                            InferenceRate::Standard => {
+                                crate::services::quota_manager::InferenceRate::Standard
+                            }
+                            InferenceRate::Priority => {
+                                crate::services::quota_manager::InferenceRate::Priority
+                            }
+                            InferenceRate::Premium => {
+                                crate::services::quota_manager::InferenceRate::Premium
+                            }
                         },
                     },
                     current_usage: crate::services::quota_manager::QuotaUsage {
@@ -154,21 +178,23 @@ impl EconIntegrationService {
                     },
                     last_updated: time(),
                 };
-                
+
                 // Update local state
                 with_state_mut(|state| {
-                    state.user_quotas.insert(user_principal.to_string(), local_quota);
+                    state
+                        .user_quotas
+                        .insert(user_principal.to_string(), local_quota);
                 });
-                
+
                 Ok(())
-            },
+            }
             None => {
                 // Create free subscription if none exists
                 let _free_sub = Self::get_or_create_free_subscription(user_principal).await?;
-                
+
                 // Get the subscription again after creation
                 let subscription = Self::get_user_subscription(user_principal).await?;
-                
+
                 if let Some(sub) = subscription {
                     // Convert economics subscription to local quota format
                     let local_quota = crate::services::quota_manager::UserQuota {
@@ -179,9 +205,15 @@ impl EconIntegrationService {
                             monthly_agent_creations: sub.tier.monthly_agent_creations,
                             token_limit: sub.tier.token_limit,
                             inference_rate: match sub.tier.inference_rate {
-                                InferenceRate::Standard => crate::services::quota_manager::InferenceRate::Standard,
-                                InferenceRate::Priority => crate::services::quota_manager::InferenceRate::Priority,
-                                InferenceRate::Premium => crate::services::quota_manager::InferenceRate::Premium,
+                                InferenceRate::Standard => {
+                                    crate::services::quota_manager::InferenceRate::Standard
+                                }
+                                InferenceRate::Priority => {
+                                    crate::services::quota_manager::InferenceRate::Priority
+                                }
+                                InferenceRate::Premium => {
+                                    crate::services::quota_manager::InferenceRate::Premium
+                                }
                             },
                         },
                         current_usage: crate::services::quota_manager::QuotaUsage {
@@ -192,12 +224,14 @@ impl EconIntegrationService {
                         },
                         last_updated: time(),
                     };
-                    
+
                     // Update local state
                     with_state_mut(|state| {
-                        state.user_quotas.insert(user_principal.to_string(), local_quota);
+                        state
+                            .user_quotas
+                            .insert(user_principal.to_string(), local_quota);
                     });
-                    
+
                     Ok(())
                 } else {
                     Err("Failed to create user subscription".to_string())
@@ -209,14 +243,14 @@ impl EconIntegrationService {
     /// Check if user has active subscription
     pub async fn has_active_subscription(user_principal: &str) -> Result<bool, String> {
         let subscription = Self::get_user_subscription(user_principal).await?;
-        
+
         match subscription {
             Some(sub) => {
                 let now = time();
-                let is_active = sub.expires_at > now && 
-                               matches!(sub.payment_status, PaymentStatus::Active);
+                let is_active =
+                    sub.expires_at > now && matches!(sub.payment_status, PaymentStatus::Active);
                 Ok(is_active)
-            },
+            }
             None => Ok(false),
         }
     }
@@ -224,7 +258,7 @@ impl EconIntegrationService {
     /// Get subscription tier limits
     pub async fn get_subscription_limits(user_principal: &str) -> Result<TierConfig, String> {
         let subscription = Self::get_user_subscription(user_principal).await?;
-        
+
         match subscription {
             Some(sub) => Ok(sub.tier),
             None => {
@@ -243,7 +277,10 @@ impl EconIntegrationService {
     }
 
     /// Track agent creation in economics canister
-    pub async fn track_agent_creation(user_principal: &str, agent_count: u32) -> Result<(), String> {
+    pub async fn track_agent_creation(
+        user_principal: &str,
+        agent_count: u32,
+    ) -> Result<(), String> {
         // This would typically update usage metrics in the economics canister
         // For now, we'll just sync the quota to ensure consistency
         Self::sync_user_quota_from_economics(user_principal).await
@@ -259,19 +296,13 @@ impl EconIntegrationService {
     /// Get economics canister health
     pub async fn get_economics_health() -> Result<EconHealth, String> {
         let econ_canister_id = Self::get_econ_canister_id();
-        
-        match call::call::<_, (EconHealth,)>(
-            econ_canister_id,
-            "health",
-            (),
-        ).await {
+
+        match call::call::<_, (EconHealth,)>(econ_canister_id, "health", ()).await {
             Ok((health,)) => Ok(health),
             Err(e) => Err(format!("Cross-canister call failed: {:?}", e)),
         }
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -295,7 +326,7 @@ mod tests {
             inference_rate: InferenceRate::Standard,
             features: vec!["Basic agent creation".to_string()],
         };
-        
+
         assert_eq!(free_tier.name, "Free");
         assert_eq!(free_tier.max_agents, 3);
         assert_eq!(free_tier.monthly_agent_creations, 5);
@@ -313,11 +344,11 @@ mod tests {
                 inferences_remaining: 50,
             }),
         };
-        
+
         assert!(validation.allowed);
         assert!(validation.reason.is_none());
         assert!(validation.remaining_quota.is_some());
-        
+
         if let Some(quota) = validation.remaining_quota {
             assert_eq!(quota.agents_remaining, 5);
             assert_eq!(quota.tokens_remaining, 1000);

@@ -1,7 +1,7 @@
 // Comprehensive Model Capability Verification System
-use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 // Note: Simplified single-file verification; detailed modules can be added back later.
 
@@ -152,10 +152,10 @@ impl VerificationEngine {
     /// Create new verification engine with comprehensive test suites
     pub fn new(config: VerificationConfig) -> Self {
         println!("🔍 Initializing comprehensive verification engine");
-        
+
         let test_suites = Self::create_default_test_suites();
         let benchmarks = Self::create_default_benchmarks();
-        
+
         Self {
             config,
             test_suites,
@@ -165,9 +165,9 @@ impl VerificationEngine {
 
     /// Verify quantized model against original model
     pub async fn verify_model(
-        &self, 
+        &self,
         original_model_path: &str,
-        quantized_model_path: &str
+        quantized_model_path: &str,
     ) -> crate::Result<VerificationReport> {
         println!("🧪 Starting comprehensive model verification");
         println!("📁 Original: {}", original_model_path);
@@ -180,32 +180,40 @@ impl VerificationEngine {
         // Run all configured tests
         for test_type in &self.config.test_types {
             println!("🔬 Running {:?} tests...", test_type);
-            
+
             let result = match test_type {
                 TestType::Perplexity => {
-                    self.test_perplexity(original_model_path, quantized_model_path).await?
-                },
+                    self.test_perplexity(original_model_path, quantized_model_path)
+                        .await?
+                }
                 TestType::SemanticSimilarity => {
-                    self.test_semantic_similarity(original_model_path, quantized_model_path).await?
-                },
+                    self.test_semantic_similarity(original_model_path, quantized_model_path)
+                        .await?
+                }
                 TestType::TokenAccuracy => {
-                    self.test_token_accuracy(original_model_path, quantized_model_path).await?
-                },
+                    self.test_token_accuracy(original_model_path, quantized_model_path)
+                        .await?
+                }
                 TestType::ResponseQuality => {
-                    self.test_response_quality(original_model_path, quantized_model_path).await?
-                },
+                    self.test_response_quality(original_model_path, quantized_model_path)
+                        .await?
+                }
                 TestType::Performance => {
-                    self.test_performance(original_model_path, quantized_model_path).await?
-                },
+                    self.test_performance(original_model_path, quantized_model_path)
+                        .await?
+                }
                 TestType::MemoryUsage => {
-                    self.test_memory_usage(original_model_path, quantized_model_path).await?
-                },
+                    self.test_memory_usage(original_model_path, quantized_model_path)
+                        .await?
+                }
                 TestType::InferenceSpeed => {
-                    self.test_inference_speed(original_model_path, quantized_model_path).await?
-                },
+                    self.test_inference_speed(original_model_path, quantized_model_path)
+                        .await?
+                }
                 TestType::CapabilityRetention => {
-                    self.test_capability_retention(original_model_path, quantized_model_path).await?
-                },
+                    self.test_capability_retention(original_model_path, quantized_model_path)
+                        .await?
+                }
             };
 
             overall_score += result.score;
@@ -230,9 +238,14 @@ impl VerificationEngine {
             TestStatus::Failed
         };
 
-        let recommendations = self.generate_recommendations(&test_results, overall_score).await;
+        let recommendations = self
+            .generate_recommendations(&test_results, overall_score)
+            .await;
 
-        println!("📊 Verification complete! Overall score: {:.1}%", overall_score * 100.0);
+        println!(
+            "📊 Verification complete! Overall score: {:.1}%",
+            overall_score * 100.0
+        );
 
         Ok(VerificationReport {
             overall_status,
@@ -247,11 +260,11 @@ impl VerificationEngine {
     /// Generate beautiful verification report
     pub fn generate_report_string(&self, report: &VerificationReport) -> String {
         let mut output = String::new();
-        
+
         output.push_str("╔══════════════════════════════════════════════════════════════════╗\n");
         output.push_str("║                    OHMS QUANTIZATION VERIFICATION               ║\n");
         output.push_str("╚══════════════════════════════════════════════════════════════════╝\n\n");
-        
+
         // Overall Status
         let status_icon = match report.overall_status {
             TestStatus::Passed => "✅",
@@ -259,23 +272,44 @@ impl VerificationEngine {
             TestStatus::Warning => "⚠️ ",
             TestStatus::Skipped => "⏭️ ",
         };
-        
-        output.push_str(&format!("{} Overall Status: {:?}\n", status_icon, report.overall_status));
-        output.push_str(&format!("📊 Overall Score: {:.1}%\n\n", report.overall_score * 100.0));
+
+        output.push_str(&format!(
+            "{} Overall Status: {:?}\n",
+            status_icon, report.overall_status
+        ));
+        output.push_str(&format!(
+            "📊 Overall Score: {:.1}%\n\n",
+            report.overall_score * 100.0
+        ));
 
         // Performance Metrics
         output.push_str("🚀 Performance Metrics:\n");
         output.push_str("─────────────────────────────────────────────────────────────────\n");
-        output.push_str(&format!("• Inference Speed: {:.1}x faster\n", report.performance_metrics.inference_speed_ratio));
-        output.push_str(&format!("• Memory Usage: {:.1}x reduction\n", report.performance_metrics.memory_usage_ratio));
-        output.push_str(&format!("• Throughput: {:.1} tokens/sec\n", report.performance_metrics.throughput_tps));
-        output.push_str(&format!("• Latency: {:.1} ms\n", report.performance_metrics.latency_ms));
-        output.push_str(&format!("• Energy Efficiency: {:.1}x improvement\n\n", report.performance_metrics.energy_efficiency));
+        output.push_str(&format!(
+            "• Inference Speed: {:.1}x faster\n",
+            report.performance_metrics.inference_speed_ratio
+        ));
+        output.push_str(&format!(
+            "• Memory Usage: {:.1}x reduction\n",
+            report.performance_metrics.memory_usage_ratio
+        ));
+        output.push_str(&format!(
+            "• Throughput: {:.1} tokens/sec\n",
+            report.performance_metrics.throughput_tps
+        ));
+        output.push_str(&format!(
+            "• Latency: {:.1} ms\n",
+            report.performance_metrics.latency_ms
+        ));
+        output.push_str(&format!(
+            "• Energy Efficiency: {:.1}x improvement\n\n",
+            report.performance_metrics.energy_efficiency
+        ));
 
         // Test Results
         output.push_str("🧪 Test Results:\n");
         output.push_str("─────────────────────────────────────────────────────────────────\n");
-        
+
         for result in &report.test_results {
             let test_icon = match result.status {
                 TestStatus::Passed => "✅",
@@ -283,13 +317,14 @@ impl VerificationEngine {
                 TestStatus::Warning => "⚠️ ",
                 TestStatus::Skipped => "⏭️ ",
             };
-            
-            output.push_str(&format!("{} {}: {:.1}%\n", 
-                test_icon, 
-                result.test_name, 
+
+            output.push_str(&format!(
+                "{} {}: {:.1}%\n",
+                test_icon,
+                result.test_name,
                 result.score * 100.0
             ));
-            
+
             if !result.details.is_empty() {
                 output.push_str(&format!("   └─ {}\n", result.details));
             }
@@ -299,7 +334,7 @@ impl VerificationEngine {
         if !report.recommendations.is_empty() {
             output.push_str("\n💡 Recommendations:\n");
             output.push_str("─────────────────────────────────────────────────────────────────\n");
-            
+
             for (i, rec) in report.recommendations.iter().enumerate() {
                 output.push_str(&format!("{}. {}\n", i + 1, rec));
             }
@@ -309,12 +344,21 @@ impl VerificationEngine {
         if let Some(analysis) = &report.detailed_analysis {
             output.push_str("\n🔬 Detailed Analysis:\n");
             output.push_str("─────────────────────────────────────────────────────────────────\n");
-            
-            output.push_str(&format!("• Layers analyzed: {}\n", analysis.layer_analysis.len()));
-            output.push_str(&format!("• Capabilities retained: {}\n", analysis.capability_map.len()));
-            
+
+            output.push_str(&format!(
+                "• Layers analyzed: {}\n",
+                analysis.layer_analysis.len()
+            ));
+            output.push_str(&format!(
+                "• Capabilities retained: {}\n",
+                analysis.capability_map.len()
+            ));
+
             if !analysis.failure_patterns.is_empty() {
-                output.push_str(&format!("• Failure patterns found: {}\n", analysis.failure_patterns.len()));
+                output.push_str(&format!(
+                    "• Failure patterns found: {}\n",
+                    analysis.failure_patterns.len()
+                ));
             }
         }
 
@@ -324,35 +368,58 @@ impl VerificationEngine {
 
     // Private test implementation methods
 
-    async fn test_perplexity(&self, _original: &str, _quantized: &str) -> crate::Result<TestResult> {
+    async fn test_perplexity(
+        &self,
+        _original: &str,
+        _quantized: &str,
+    ) -> crate::Result<TestResult> {
         println!("📊 Testing perplexity preservation (proxy via size/speed)...");
         let t0 = std::time::Instant::now();
-        let prompts = ["Hello", "The capital of France is", "2+2=", "Once upon a time"]; // tiny eval set
+        let prompts = [
+            "Hello",
+            "The capital of France is",
+            "2+2=",
+            "Once upon a time",
+        ]; // tiny eval set
         let _work: usize = prompts.iter().map(|p| p.len()).sum();
         let elapsed = t0.elapsed().as_millis() as f32 + 1.0;
         let speed_factor = (1000.0 / elapsed).min(1.0);
         let size_gain = 0.5; // TODO: derive from actual artifact sizes when available
         let score = 0.5 * speed_factor + 0.5 * size_gain;
-        let status = if score >= 0.90 { TestStatus::Passed } else { TestStatus::Warning };
+        let status = if score >= 0.90 {
+            TestStatus::Passed
+        } else {
+            TestStatus::Warning
+        };
         let mut metrics = HashMap::new();
         metrics.insert("size_gain_norm".to_string(), size_gain);
         metrics.insert("speed_factor".to_string(), speed_factor);
-        Ok(TestResult { test_name: "Perplexity Test".to_string(), status, score, details: "Size/speed proxy".to_string(), metrics })
+        Ok(TestResult {
+            test_name: "Perplexity Test".to_string(),
+            status,
+            score,
+            details: "Size/speed proxy".to_string(),
+            metrics,
+        })
     }
 
-    async fn test_semantic_similarity(&self, original: &str, quantized: &str) -> crate::Result<TestResult> {
+    async fn test_semantic_similarity(
+        &self,
+        original: &str,
+        quantized: &str,
+    ) -> crate::Result<TestResult> {
         println!("🧠 Testing semantic similarity...");
-        
+
         // Real semantic similarity testing using vector embeddings
         let similarity_score = self.compute_cosine_similarity(&original, &quantized); // Real computation
-        let status = if similarity_score >= 0.90 { 
-            TestStatus::Passed 
-        } else if similarity_score >= 0.85 { 
-            TestStatus::Warning 
-        } else { 
-            TestStatus::Failed 
+        let status = if similarity_score >= 0.90 {
+            TestStatus::Passed
+        } else if similarity_score >= 0.85 {
+            TestStatus::Warning
+        } else {
+            TestStatus::Failed
         };
-        
+
         let mut metrics = HashMap::new();
         metrics.insert("cosine_similarity".to_string(), similarity_score);
         metrics.insert("bert_score".to_string(), 0.92);
@@ -367,17 +434,21 @@ impl VerificationEngine {
         })
     }
 
-    async fn test_token_accuracy(&self, original: &str, quantized: &str) -> crate::Result<TestResult> {
+    async fn test_token_accuracy(
+        &self,
+        original: &str,
+        quantized: &str,
+    ) -> crate::Result<TestResult> {
         println!("🎯 Testing token prediction accuracy...");
-        
+
         // Real token accuracy testing across various prompts
         let accuracy = self.measure_token_prediction_accuracy(&original, &quantized); // Real measurement
-        let status = if accuracy >= 0.90 { 
-            TestStatus::Passed 
-        } else { 
-            TestStatus::Warning 
+        let status = if accuracy >= 0.90 {
+            TestStatus::Passed
+        } else {
+            TestStatus::Warning
         };
-        
+
         let mut metrics = HashMap::new();
         metrics.insert("top1_accuracy".to_string(), accuracy);
         metrics.insert("top5_accuracy".to_string(), 0.97);
@@ -392,17 +463,21 @@ impl VerificationEngine {
         })
     }
 
-    async fn test_response_quality(&self, original: &str, quantized: &str) -> crate::Result<TestResult> {
+    async fn test_response_quality(
+        &self,
+        original: &str,
+        quantized: &str,
+    ) -> crate::Result<TestResult> {
         println!("💬 Testing response quality...");
-        
+
         // Test response quality on various tasks
         let quality_score = 0.89;
-        let status = if quality_score >= 0.85 { 
-            TestStatus::Passed 
-        } else { 
-            TestStatus::Warning 
+        let status = if quality_score >= 0.85 {
+            TestStatus::Passed
+        } else {
+            TestStatus::Warning
         };
-        
+
         let mut metrics = HashMap::new();
         metrics.insert("coherence".to_string(), 0.91);
         metrics.insert("relevance".to_string(), 0.88);
@@ -420,14 +495,15 @@ impl VerificationEngine {
 
     async fn test_performance(&self, original: &str, quantized: &str) -> crate::Result<TestResult> {
         println!("⚡ Testing performance improvements...");
-        
+
         // Test inference speed, memory usage, etc.
         let speedup = 12.5; // 12.5x faster
         let memory_reduction = 0.08; // 92% memory reduction
-        
-        let performance_score = (speedup / 10.0_f32).min(1.0_f32) * 0.6_f32 + (1.0_f32 - memory_reduction) * 0.4_f32;
+
+        let performance_score =
+            (speedup / 10.0_f32).min(1.0_f32) * 0.6_f32 + (1.0_f32 - memory_reduction) * 0.4_f32;
         let status = TestStatus::Passed; // Performance improvements are always good
-        
+
         let mut metrics = HashMap::new();
         metrics.insert("inference_speedup".to_string(), speedup);
         metrics.insert("memory_reduction".to_string(), 1.0 - memory_reduction);
@@ -437,18 +513,26 @@ impl VerificationEngine {
             test_name: "Performance".to_string(),
             status,
             score: performance_score,
-            details: format!("{:.1}x faster, {:.0}% less memory", speedup, (1.0 - memory_reduction) * 100.0),
+            details: format!(
+                "{:.1}x faster, {:.0}% less memory",
+                speedup,
+                (1.0 - memory_reduction) * 100.0
+            ),
             metrics,
         })
     }
 
-    async fn test_memory_usage(&self, original: &str, quantized: &str) -> crate::Result<TestResult> {
+    async fn test_memory_usage(
+        &self,
+        original: &str,
+        quantized: &str,
+    ) -> crate::Result<TestResult> {
         println!("💾 Testing memory efficiency...");
-        
+
         let memory_reduction = 0.92; // 92% reduction
         let score = memory_reduction;
         let status = TestStatus::Passed;
-        
+
         let mut metrics = HashMap::new();
         metrics.insert("memory_reduction".to_string(), memory_reduction);
         metrics.insert("peak_memory_mb".to_string(), 450.0);
@@ -463,25 +547,45 @@ impl VerificationEngine {
         })
     }
 
-    async fn test_inference_speed(&self, _original: &str, _quantized: &str) -> crate::Result<TestResult> {
+    async fn test_inference_speed(
+        &self,
+        _original: &str,
+        _quantized: &str,
+    ) -> crate::Result<TestResult> {
         println!("🏃 Testing inference speed (timing proxy)...");
         let t0 = std::time::Instant::now();
         let mut acc: u64 = 0;
-        for i in 0..100_000 { acc = acc.wrapping_add(i); }
+        for i in 0..100_000 {
+            acc = acc.wrapping_add(i);
+        }
         let elapsed_ms = t0.elapsed().as_millis() as f32 + 1.0;
         let speedup = (500.0 / elapsed_ms).max(0.1);
         let score = (speedup / 20.0_f32).min(1.0_f32);
-        let status = if score >= 0.5 { TestStatus::Passed } else { TestStatus::Warning };
+        let status = if score >= 0.5 {
+            TestStatus::Passed
+        } else {
+            TestStatus::Warning
+        };
         let mut metrics = HashMap::new();
         metrics.insert("speedup_ratio".to_string(), speedup);
         metrics.insert("tokens_per_second".to_string(), 1000.0 * speedup);
         metrics.insert("latency_ms".to_string(), elapsed_ms);
-        Ok(TestResult { test_name: "Inference Speed".to_string(), status, score, details: "Timing proxy".to_string(), metrics })
+        Ok(TestResult {
+            test_name: "Inference Speed".to_string(),
+            status,
+            score,
+            details: "Timing proxy".to_string(),
+            metrics,
+        })
     }
 
-    async fn test_capability_retention(&self, original: &str, quantized: &str) -> crate::Result<TestResult> {
+    async fn test_capability_retention(
+        &self,
+        original: &str,
+        quantized: &str,
+    ) -> crate::Result<TestResult> {
         println!("🧠 Testing capability retention...");
-        
+
         // Test various capabilities: reasoning, math, coding, etc.
         let capabilities = vec![
             ("reasoning", 0.91),
@@ -490,10 +594,15 @@ impl VerificationEngine {
             ("creative_writing", 0.88),
             ("factual_qa", 0.92),
         ];
-        
-        let avg_retention = capabilities.iter().map(|(_, score)| score).sum::<f32>() / capabilities.len() as f32;
-        let status = if avg_retention >= 0.88 { TestStatus::Passed } else { TestStatus::Warning };
-        
+
+        let avg_retention =
+            capabilities.iter().map(|(_, score)| score).sum::<f32>() / capabilities.len() as f32;
+        let status = if avg_retention >= 0.88 {
+            TestStatus::Passed
+        } else {
+            TestStatus::Warning
+        };
+
         let mut metrics = HashMap::new();
         for (cap, score) in capabilities {
             metrics.insert(cap.to_string(), score);
@@ -504,18 +613,24 @@ impl VerificationEngine {
             test_name: "Capability Retention".to_string(),
             status,
             score: avg_retention,
-            details: format!("Average capability retention: {:.1}%", avg_retention * 100.0),
+            details: format!(
+                "Average capability retention: {:.1}%",
+                avg_retention * 100.0
+            ),
             metrics,
         })
     }
 
-    async fn generate_performance_report(&self, results: &[TestResult]) -> crate::Result<PerformanceReport> {
+    async fn generate_performance_report(
+        &self,
+        results: &[TestResult],
+    ) -> crate::Result<PerformanceReport> {
         // Extract performance metrics from test results
         let mut inference_speed = 1.0;
         let mut memory_reduction = 1.0;
         let mut throughput = 100.0;
         let mut latency = 200.0;
-        
+
         for result in results {
             if let Some(&speed) = result.metrics.get("speedup_ratio") {
                 inference_speed = speed;
@@ -540,7 +655,10 @@ impl VerificationEngine {
         })
     }
 
-    async fn generate_detailed_analysis(&self, results: &[TestResult]) -> crate::Result<DetailedAnalysis> {
+    async fn generate_detailed_analysis(
+        &self,
+        results: &[TestResult],
+    ) -> crate::Result<DetailedAnalysis> {
         // Generate detailed analysis from test results
         let layer_analysis = vec![
             LayerAnalysis {
@@ -554,7 +672,7 @@ impl VerificationEngine {
                 accuracy_retention: 0.89,
                 compression_ratio: 18.2,
                 critical_weights_preserved: true,
-            }
+            },
         ];
 
         let mut capability_map = HashMap::new();
@@ -562,14 +680,12 @@ impl VerificationEngine {
         capability_map.insert("question_answering".to_string(), 0.93);
         capability_map.insert("reasoning".to_string(), 0.88);
 
-        let failure_patterns = vec![
-            FailurePattern {
-                pattern_type: "rare_token_generation".to_string(),
-                frequency: 3,
-                examples: vec!["Obscure proper nouns".to_string()],
-                suggested_fix: "Preserve embedding layer precision".to_string(),
-            }
-        ];
+        let failure_patterns = vec![FailurePattern {
+            pattern_type: "rare_token_generation".to_string(),
+            frequency: 3,
+            examples: vec!["Obscure proper nouns".to_string()],
+            suggested_fix: "Preserve embedding layer precision".to_string(),
+        }];
 
         let optimization_suggestions = vec![
             "Consider mixed-precision for attention layers".to_string(),
@@ -584,7 +700,11 @@ impl VerificationEngine {
         })
     }
 
-    async fn generate_recommendations(&self, results: &[TestResult], overall_score: f32) -> Vec<String> {
+    async fn generate_recommendations(
+        &self,
+        results: &[TestResult],
+        overall_score: f32,
+    ) -> Vec<String> {
         let mut recommendations = Vec::new();
 
         if overall_score < 0.90 {
@@ -594,47 +714,50 @@ impl VerificationEngine {
         // Check specific test results for targeted recommendations
         for result in results {
             if result.test_name == "Perplexity Test" && result.score < 0.85 {
-                recommendations.push("Increase calibration dataset size for better perplexity".to_string());
+                recommendations
+                    .push("Increase calibration dataset size for better perplexity".to_string());
             }
-            
+
             if result.test_name == "Token Accuracy" && result.score < 0.88 {
-                recommendations.push("Apply knowledge distillation during quantization".to_string());
+                recommendations
+                    .push("Apply knowledge distillation during quantization".to_string());
             }
         }
 
         if recommendations.is_empty() {
-            recommendations.push("Model quantization successful - no critical issues found".to_string());
+            recommendations
+                .push("Model quantization successful - no critical issues found".to_string());
         }
 
         recommendations
     }
-    
+
     /// Compute real cosine similarity between two text representations
     fn compute_cosine_similarity(&self, text1: &str, text2: &str) -> f32 {
         // Real cosine similarity computation using character-level features
         let vec1 = self.text_to_feature_vector(text1);
         let vec2 = self.text_to_feature_vector(text2);
-        
+
         let dot_product: f32 = vec1.iter().zip(vec2.iter()).map(|(&a, &b)| a * b).sum();
         let norm1: f32 = vec1.iter().map(|&x| x * x).sum::<f32>().sqrt();
         let norm2: f32 = vec2.iter().map(|&x| x * x).sum::<f32>().sqrt();
-        
+
         if norm1 > 1e-8 && norm2 > 1e-8 {
             dot_product / (norm1 * norm2)
         } else {
             0.0
         }
     }
-    
+
     /// Convert text to feature vector for similarity computation
     fn text_to_feature_vector(&self, text: &str) -> Vec<f32> {
         let mut features = vec![0.0; 256]; // ASCII-based features
-        
+
         for (i, ch) in text.chars().enumerate() {
             let idx = (ch as u8 as usize) % 256;
             features[idx] += 1.0 / (i + 1) as f32; // Position-weighted frequency
         }
-        
+
         // Normalize features
         let sum: f32 = features.iter().sum();
         if sum > 1e-8 {
@@ -642,27 +765,27 @@ impl VerificationEngine {
                 *feature /= sum;
             }
         }
-        
+
         features
     }
-    
+
     /// Measure real token prediction accuracy between original and quantized models
     fn measure_token_prediction_accuracy(&self, original: &str, quantized: &str) -> f32 {
         // Real token-level comparison
         let orig_tokens = self.tokenize_text(original);
         let quant_tokens = self.tokenize_text(quantized);
-        
+
         if orig_tokens.is_empty() {
             return 0.0;
         }
-        
+
         let mut matches = 0;
         let max_len = orig_tokens.len().max(quant_tokens.len());
-        
+
         for i in 0..max_len {
             let orig_token = orig_tokens.get(i);
             let quant_token = quant_tokens.get(i);
-            
+
             match (orig_token, quant_token) {
                 (Some(o), Some(q)) if o == q => matches += 1,
                 (Some(o), Some(q)) => {
@@ -675,17 +798,15 @@ impl VerificationEngine {
                 _ => {}
             }
         }
-        
+
         matches as f32 / max_len as f32
     }
-    
+
     /// Simple tokenization for accuracy measurement
     fn tokenize_text(&self, text: &str) -> Vec<String> {
-        text.split_whitespace()
-            .map(|s| s.to_lowercase())
-            .collect()
+        text.split_whitespace().map(|s| s.to_lowercase()).collect()
     }
-    
+
     /// Calculate similarity between two tokens
     fn token_similarity(&self, token1: &str, token2: &str) -> f32 {
         // Levenshtein distance-based similarity
@@ -693,36 +814,40 @@ impl VerificationEngine {
         if max_len == 0 {
             return 1.0;
         }
-        
+
         let distance = self.levenshtein_distance(token1, token2);
         1.0 - (distance as f32 / max_len as f32)
     }
-    
+
     /// Calculate Levenshtein distance between two strings
     fn levenshtein_distance(&self, s1: &str, s2: &str) -> usize {
         let len1 = s1.chars().count();
         let len2 = s2.chars().count();
         let mut matrix = vec![vec![0; len2 + 1]; len1 + 1];
-        
+
         for i in 0..=len1 {
             matrix[i][0] = i;
         }
         for j in 0..=len2 {
             matrix[0][j] = j;
         }
-        
+
         let s1_chars: Vec<char> = s1.chars().collect();
         let s2_chars: Vec<char> = s2.chars().collect();
-        
+
         for i in 1..=len1 {
             for j in 1..=len2 {
-                let cost = if s1_chars[i-1] == s2_chars[j-1] { 0 } else { 1 };
-                matrix[i][j] = (matrix[i-1][j] + 1)
-                    .min(matrix[i][j-1] + 1)
-                    .min(matrix[i-1][j-1] + cost);
+                let cost = if s1_chars[i - 1] == s2_chars[j - 1] {
+                    0
+                } else {
+                    1
+                };
+                matrix[i][j] = (matrix[i - 1][j] + 1)
+                    .min(matrix[i][j - 1] + 1)
+                    .min(matrix[i - 1][j - 1] + cost);
             }
         }
-        
+
         matrix[len1][len2]
     }
 
@@ -731,29 +856,25 @@ impl VerificationEngine {
             TestSuite {
                 name: "Language Understanding".to_string(),
                 description: "Test comprehension and reasoning abilities".to_string(),
-                test_cases: vec![
-                    TestCase {
-                        id: "lu_001".to_string(),
-                        input: "What is the capital of France?".to_string(),
-                        expected_output: Some("Paris".to_string()),
-                        category: "factual_qa".to_string(),
-                        difficulty: TestDifficulty::Easy,
-                    }
-                ],
+                test_cases: vec![TestCase {
+                    id: "lu_001".to_string(),
+                    input: "What is the capital of France?".to_string(),
+                    expected_output: Some("Paris".to_string()),
+                    category: "factual_qa".to_string(),
+                    difficulty: TestDifficulty::Easy,
+                }],
                 expected_accuracy: 0.90,
             },
             TestSuite {
                 name: "Mathematical Reasoning".to_string(),
                 description: "Test mathematical problem-solving abilities".to_string(),
-                test_cases: vec![
-                    TestCase {
-                        id: "math_001".to_string(),
-                        input: "Solve: 2x + 5 = 13".to_string(),
-                        expected_output: Some("x = 4".to_string()),
-                        category: "mathematics".to_string(),
-                        difficulty: TestDifficulty::Medium,
-                    }
-                ],
+                test_cases: vec![TestCase {
+                    id: "math_001".to_string(),
+                    input: "Solve: 2x + 5 = 13".to_string(),
+                    expected_output: Some("x = 4".to_string()),
+                    category: "mathematics".to_string(),
+                    difficulty: TestDifficulty::Medium,
+                }],
                 expected_accuracy: 0.85,
             },
         ]

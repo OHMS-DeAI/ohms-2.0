@@ -1,10 +1,10 @@
 // Universal Model Loader - Supports ANY LLM format
+use memmap2::{Mmap, MmapOptions};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use memmap2::{Mmap, MmapOptions};
 
 /// Universal model that can represent any LLM
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -173,14 +173,18 @@ pub struct F16(u16);
 
 impl Serialize for F16 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: serde::Serializer {
+    where
+        S: serde::Serializer,
+    {
         serializer.serialize_f32(self.to_f32())
     }
 }
 
 impl<'de> Deserialize<'de> for F16 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: serde::Deserializer<'de> {
+    where
+        D: serde::Deserializer<'de>,
+    {
         let val = f32::deserialize(deserializer)?;
         Ok(F16::from_f32(val))
     }
@@ -193,21 +197,21 @@ impl F16 {
         let sign = (bits >> 31) as u16;
         let exp = ((bits >> 23) & 0xff) as i32;
         let frac = (bits & 0x7fffff) as u32;
-        
+
         let half_exp = (exp - 127 + 15).max(0).min(31) as u16;
         let half_frac = (frac >> 13) as u16;
-        
+
         F16((sign << 15) | (half_exp << 10) | half_frac)
     }
-    
+
     pub fn to_f32(&self) -> f32 {
         let sign = (self.0 >> 15) as u32;
         let exp = ((self.0 >> 10) & 0x1f) as i32;
         let frac = (self.0 & 0x3ff) as u32;
-        
+
         let float_exp = (exp - 15 + 127) as u32;
         let float_frac = frac << 13;
-        
+
         f32::from_bits((sign << 31) | (float_exp << 23) | float_frac)
     }
 }
@@ -222,12 +226,15 @@ impl UniversalLoader {
             mmap_cache: HashMap::new(),
         }
     }
-    
+
     /// Load any model format
-    pub fn load_model<P: AsRef<Path>>(&mut self, path: P) -> Result<UniversalModel, Box<dyn std::error::Error>> {
+    pub fn load_model<P: AsRef<Path>>(
+        &mut self,
+        path: P,
+    ) -> Result<UniversalModel, Box<dyn std::error::Error>> {
         let path = path.as_ref();
         let format = self.detect_format(path)?;
-        
+
         match format {
             ModelFormat::ONNX => self.load_onnx(path),
             ModelFormat::SafeTensors => self.load_safetensors(path),
@@ -237,13 +244,11 @@ impl UniversalLoader {
             _ => self.load_generic(path),
         }
     }
-    
+
     /// Detect model format from file extension and magic bytes
     fn detect_format(&self, path: &Path) -> Result<ModelFormat, Box<dyn std::error::Error>> {
-        let extension = path.extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("");
-        
+        let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+
         // Check by extension first
         let format = match extension {
             "onnx" => ModelFormat::ONNX,
@@ -260,15 +265,15 @@ impl UniversalLoader {
                 self.detect_by_magic(path)?
             }
         };
-        
+
         Ok(format)
     }
-    
+
     fn detect_by_magic(&self, path: &Path) -> Result<ModelFormat, Box<dyn std::error::Error>> {
         let mut file = File::open(path)?;
         let mut magic = [0u8; 8];
         file.read_exact(&mut magic)?;
-        
+
         // Check magic bytes
         if &magic[0..4] == b"GGUF" {
             Ok(ModelFormat::GGUF)
@@ -284,15 +289,19 @@ impl UniversalLoader {
             Ok(ModelFormat::Custom("unknown".to_string()))
         }
     }
-    
+
     /// Load ONNX model
     fn load_onnx(&mut self, path: &Path) -> Result<UniversalModel, Box<dyn std::error::Error>> {
         let file = File::open(path)?;
         let mmap = unsafe { MmapOptions::new().map(&file)? };
-        
+
         // Parse ONNX protobuf (simplified)
         let metadata = UniversalMetadata {
-            name: path.file_stem().unwrap_or_default().to_string_lossy().to_string(),
+            name: path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
             architecture: "onnx".to_string(),
             parameters: 0,
             precision: Precision::FP32,
@@ -306,7 +315,7 @@ impl UniversalLoader {
             max_position_embeddings: 2048,
             layer_norm_epsilon: 1e-5,
         };
-        
+
         let config = ModelConfig {
             model_type: "onnx".to_string(),
             architectures: vec!["transformer".to_string()],
@@ -329,9 +338,9 @@ impl UniversalLoader {
             use_cache: true,
             vocab_size: metadata.vocab_size,
         };
-        
+
         self.mmap_cache.insert(path.to_path_buf(), mmap);
-        
+
         Ok(UniversalModel {
             format: ModelFormat::ONNX,
             metadata,
@@ -340,9 +349,12 @@ impl UniversalLoader {
             config,
         })
     }
-    
+
     /// Load SafeTensors model
-    fn load_safetensors(&mut self, path: &Path) -> Result<UniversalModel, Box<dyn std::error::Error>> {
+    fn load_safetensors(
+        &mut self,
+        path: &Path,
+    ) -> Result<UniversalModel, Box<dyn std::error::Error>> {
         let bytes = std::fs::read(path)?;
         let header_size = u64::from_le_bytes(bytes[0..8].try_into()?) as usize;
         let header: serde_json::Value = serde_json::from_slice(&bytes[8..8 + header_size])?;
@@ -360,8 +372,18 @@ impl UniversalLoader {
                         "BF16" | "bfloat16" => DataType::BFloat16,
                         _ => DataType::Float32,
                     };
-                    if let (Some(shape_v), Some(offset_v), Some(size_v)) = (obj.get("shape"), obj.get("data_offsets"), obj.get("data_offsets")) {
-                        let shape = shape_v.as_array().unwrap_or(&vec![]).iter().filter_map(|x| x.as_u64()).map(|x| x as usize).collect::<Vec<_>>();
+                    if let (Some(shape_v), Some(offset_v), Some(size_v)) = (
+                        obj.get("shape"),
+                        obj.get("data_offsets"),
+                        obj.get("data_offsets"),
+                    ) {
+                        let shape = shape_v
+                            .as_array()
+                            .unwrap_or(&vec![])
+                            .iter()
+                            .filter_map(|x| x.as_u64())
+                            .map(|x| x as usize)
+                            .collect::<Vec<_>>();
                         let tmp = vec![];
                         let offsets = offset_v.as_array().unwrap_or(&tmp);
                         if offsets.len() == 2 {
@@ -370,14 +392,22 @@ impl UniversalLoader {
                             let size = end.saturating_sub(off);
                             let data = TensorData::MemoryMapped { offset: off, size };
                             let key = name.split('.').take(2).collect::<Vec<_>>().join(".");
-                            let tensor = Tensor { name: name.clone(), shape: shape.clone(), dtype: dtype.clone(), data };
+                            let tensor = Tensor {
+                                name: name.clone(),
+                                shape: shape.clone(),
+                                dtype: dtype.clone(),
+                                data,
+                            };
                             by_layer.entry(key).or_default().push(tensor);
                         }
                     }
                 }
             }
             for (lname, tensors) in by_layer.into_iter() {
-                let params: u64 = tensors.iter().map(|t| t.shape.iter().product::<usize>() as u64).sum();
+                let params: u64 = tensors
+                    .iter()
+                    .map(|t| t.shape.iter().product::<usize>() as u64)
+                    .sum();
                 layers.push(Layer {
                     name: lname.clone(),
                     layer_type: self.infer_layer_type(&lname),
@@ -389,7 +419,11 @@ impl UniversalLoader {
         }
 
         let metadata = UniversalMetadata {
-            name: path.file_stem().unwrap_or_default().to_string_lossy().to_string(),
+            name: path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
             architecture: "transformer".to_string(),
             parameters: layers.iter().map(|l| l.parameters).sum(),
             precision: Precision::FP16,
@@ -426,20 +460,26 @@ impl UniversalLoader {
             vocab_size: 0,
         };
 
-        Ok(UniversalModel { format: ModelFormat::SafeTensors, metadata, layers, tokenizer: None, config })
+        Ok(UniversalModel {
+            format: ModelFormat::SafeTensors,
+            metadata,
+            layers,
+            tokenizer: None,
+            config,
+        })
     }
-    
+
     /// Load PyTorch model
     fn load_pytorch(&mut self, path: &Path) -> Result<UniversalModel, Box<dyn std::error::Error>> {
         // PyTorch models are ZIP files with pickle data
         let file = File::open(path)?;
         let mmap = unsafe { MmapOptions::new().map(&file)? };
-        
+
         let metadata = self.extract_pytorch_metadata(&mmap)?;
         let config = self.extract_pytorch_config(&mmap)?;
-        
+
         self.mmap_cache.insert(path.to_path_buf(), mmap);
-        
+
         Ok(UniversalModel {
             format: ModelFormat::PyTorch,
             metadata,
@@ -448,11 +488,18 @@ impl UniversalLoader {
             config,
         })
     }
-    
+
     /// Load TensorFlow model
-    fn load_tensorflow(&mut self, path: &Path) -> Result<UniversalModel, Box<dyn std::error::Error>> {
+    fn load_tensorflow(
+        &mut self,
+        path: &Path,
+    ) -> Result<UniversalModel, Box<dyn std::error::Error>> {
         let metadata = UniversalMetadata {
-            name: path.file_stem().unwrap_or_default().to_string_lossy().to_string(),
+            name: path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
             architecture: "tensorflow".to_string(),
             parameters: 0,
             precision: Precision::FP32,
@@ -466,7 +513,7 @@ impl UniversalLoader {
             max_position_embeddings: 2048,
             layer_norm_epsilon: 1e-5,
         };
-        
+
         let config = ModelConfig {
             model_type: "tensorflow".to_string(),
             architectures: vec!["transformer".to_string()],
@@ -489,7 +536,7 @@ impl UniversalLoader {
             use_cache: true,
             vocab_size: metadata.vocab_size,
         };
-        
+
         Ok(UniversalModel {
             format: ModelFormat::TensorFlow,
             metadata,
@@ -498,12 +545,16 @@ impl UniversalLoader {
             config,
         })
     }
-    
+
     /// Load GGML/GGUF models
     fn load_ggml(&mut self, path: &Path) -> Result<UniversalModel, Box<dyn std::error::Error>> {
         // Fallback generic loader for GGML/GGUF when specialized loader is not available
         let file_size = std::fs::metadata(path)?.len();
-        let name = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+        let name = path
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
         let metadata = UniversalMetadata {
             name,
             architecture: "ggml".to_string(),
@@ -549,13 +600,17 @@ impl UniversalLoader {
             config,
         })
     }
-    
+
     /// Load generic/unknown format
     fn load_generic(&mut self, path: &Path) -> Result<UniversalModel, Box<dyn std::error::Error>> {
         let file_size = std::fs::metadata(path)?.len();
-        
+
         let metadata = UniversalMetadata {
-            name: path.file_stem().unwrap_or_default().to_string_lossy().to_string(),
+            name: path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
             architecture: "unknown".to_string(),
             parameters: file_size / 4, // Rough estimate
             precision: Precision::FP32,
@@ -569,7 +624,7 @@ impl UniversalLoader {
             max_position_embeddings: 2048,
             layer_norm_epsilon: 1e-5,
         };
-        
+
         let config = ModelConfig {
             model_type: "generic".to_string(),
             architectures: vec!["unknown".to_string()],
@@ -592,7 +647,7 @@ impl UniversalLoader {
             use_cache: true,
             vocab_size: metadata.vocab_size,
         };
-        
+
         Ok(UniversalModel {
             format: ModelFormat::Custom("generic".to_string()),
             metadata,
@@ -601,14 +656,20 @@ impl UniversalLoader {
             config,
         })
     }
-    
+
     // Helper methods
-    fn extract_layers_from_mmap(&self, path: &Path) -> Result<Vec<Layer>, Box<dyn std::error::Error>> {
+    fn extract_layers_from_mmap(
+        &self,
+        path: &Path,
+    ) -> Result<Vec<Layer>, Box<dyn std::error::Error>> {
         // Extract layers from memory-mapped file
         Ok(Vec::new())
     }
-    
-    fn parse_safetensors_metadata(&self, _header: &serde_json::Value) -> Result<UniversalMetadata, Box<dyn std::error::Error>> {
+
+    fn parse_safetensors_metadata(
+        &self,
+        _header: &serde_json::Value,
+    ) -> Result<UniversalMetadata, Box<dyn std::error::Error>> {
         Ok(UniversalMetadata {
             name: "safetensors_model".to_string(),
             architecture: "transformer".to_string(),
@@ -625,8 +686,11 @@ impl UniversalLoader {
             layer_norm_epsilon: 1e-5,
         })
     }
-    
-    fn parse_safetensors_config(&self, _header: &serde_json::Value) -> Result<ModelConfig, Box<dyn std::error::Error>> {
+
+    fn parse_safetensors_config(
+        &self,
+        _header: &serde_json::Value,
+    ) -> Result<ModelConfig, Box<dyn std::error::Error>> {
         Ok(ModelConfig {
             model_type: "safetensors".to_string(),
             architectures: vec!["transformer".to_string()],
@@ -650,12 +714,19 @@ impl UniversalLoader {
             vocab_size: 50257,
         })
     }
-    
-    fn extract_safetensors_layers(&self, _data: &[u8], _header: &serde_json::Value) -> Result<Vec<Layer>, Box<dyn std::error::Error>> {
+
+    fn extract_safetensors_layers(
+        &self,
+        _data: &[u8],
+        _header: &serde_json::Value,
+    ) -> Result<Vec<Layer>, Box<dyn std::error::Error>> {
         Ok(Vec::new())
     }
-    
-    fn extract_pytorch_metadata(&self, _mmap: &Mmap) -> Result<UniversalMetadata, Box<dyn std::error::Error>> {
+
+    fn extract_pytorch_metadata(
+        &self,
+        _mmap: &Mmap,
+    ) -> Result<UniversalMetadata, Box<dyn std::error::Error>> {
         Ok(UniversalMetadata {
             name: "pytorch_model".to_string(),
             architecture: "transformer".to_string(),
@@ -672,8 +743,11 @@ impl UniversalLoader {
             layer_norm_epsilon: 1e-5,
         })
     }
-    
-    fn extract_pytorch_config(&self, _mmap: &Mmap) -> Result<ModelConfig, Box<dyn std::error::Error>> {
+
+    fn extract_pytorch_config(
+        &self,
+        _mmap: &Mmap,
+    ) -> Result<ModelConfig, Box<dyn std::error::Error>> {
         Ok(ModelConfig {
             model_type: "pytorch".to_string(),
             architectures: vec!["transformer".to_string()],
@@ -697,16 +771,22 @@ impl UniversalLoader {
             vocab_size: 50257,
         })
     }
-    
-    fn extract_pytorch_layers(&self, _path: &Path) -> Result<Vec<Layer>, Box<dyn std::error::Error>> {
+
+    fn extract_pytorch_layers(
+        &self,
+        _path: &Path,
+    ) -> Result<Vec<Layer>, Box<dyn std::error::Error>> {
         Ok(Vec::new())
     }
-    
+
     // No-op stub when specialized GGML parsing is unavailable
-    fn convert_ggml_tensors_to_layers(&self, _tensors: Vec<()>) -> Result<Vec<Layer>, Box<dyn std::error::Error>> {
+    fn convert_ggml_tensors_to_layers(
+        &self,
+        _tensors: Vec<()>,
+    ) -> Result<Vec<Layer>, Box<dyn std::error::Error>> {
         Ok(Vec::new())
     }
-    
+
     fn infer_layer_type(&self, name: &str) -> LayerType {
         if name.contains("embed") {
             LayerType::Embedding
@@ -726,12 +806,16 @@ impl UniversalLoader {
             LayerType::Custom(name.to_string())
         }
     }
-    
-    fn convert_ggml_dtype(&self, _dtype: ()) -> DataType { DataType::Float32 }
+
+    fn convert_ggml_dtype(&self, _dtype: ()) -> DataType {
+        DataType::Float32
+    }
 }
 
 /// Auto-detect and load any model
-pub fn load_any_model<P: AsRef<Path>>(path: P) -> Result<UniversalModel, Box<dyn std::error::Error>> {
+pub fn load_any_model<P: AsRef<Path>>(
+    path: P,
+) -> Result<UniversalModel, Box<dyn std::error::Error>> {
     let mut loader = UniversalLoader::new();
     loader.load_model(path)
 }
@@ -739,7 +823,7 @@ pub fn load_any_model<P: AsRef<Path>>(path: P) -> Result<UniversalModel, Box<dyn
 /// Find model from various sources
 pub fn find_model(model_name: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let search_paths = get_model_search_paths()?;
-    
+
     for dir in search_paths {
         let dir_path = Path::new(&dir);
         if dir_path.exists() {
@@ -748,10 +832,8 @@ pub fn find_model(model_name: &str) -> Result<PathBuf, Box<dyn std::error::Error
                 for entry in entries.flatten() {
                     let path = entry.path();
                     if path.is_file() {
-                        let filename = path.file_name()
-                            .and_then(|n| n.to_str())
-                            .unwrap_or("");
-                        
+                        let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
                         if filename.contains(model_name) {
                             return Ok(path);
                         }
@@ -760,27 +842,27 @@ pub fn find_model(model_name: &str) -> Result<PathBuf, Box<dyn std::error::Error
             }
         }
     }
-    
+
     // Try exact path
     let path = Path::new(model_name);
     if path.exists() {
         return Ok(path.to_path_buf());
     }
-    
+
     Err(format!("Model '{}' not found in any standard location", model_name).into())
 }
 
 /// Get cross-platform model search paths
 fn get_model_search_paths() -> Result<Vec<String>, Box<dyn std::error::Error>> {
     let mut paths = Vec::new();
-    
+
     if cfg!(target_os = "windows") {
         // Windows paths
         let appdata = std::env::var("LOCALAPPDATA")
             .unwrap_or_else(|_| "C:\\Users\\Default\\AppData\\Local".to_string());
-        let userprofile = std::env::var("USERPROFILE")
-            .unwrap_or_else(|_| "C:\\Users\\Default".to_string());
-        
+        let userprofile =
+            std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\Users\\Default".to_string());
+
         paths.extend(vec![
             format!("{}\\Ollama\\.ollama\\models\\blobs", appdata),
             format!("{}\\.cache\\huggingface\\hub", userprofile),
@@ -793,7 +875,7 @@ fn get_model_search_paths() -> Result<Vec<String>, Box<dyn std::error::Error>> {
     } else if cfg!(target_os = "macos") {
         // macOS paths
         let home = std::env::var("HOME").unwrap_or_else(|_| "/Users/Shared".to_string());
-        
+
         paths.extend(vec![
             format!("{}/.ollama/models/blobs", home),
             format!("{}/Library/Caches/huggingface/hub", home),
@@ -808,32 +890,28 @@ fn get_model_search_paths() -> Result<Vec<String>, Box<dyn std::error::Error>> {
     } else {
         // Linux/Unix paths
         let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-        
+
         paths.extend(vec![
             // User-specific Ollama
             format!("{}/.ollama/models/blobs", home),
-            
             // System Ollama locations
             "/usr/share/ollama/.ollama/models/blobs".to_string(),
             "/usr/local/share/ollama/.ollama/models/blobs".to_string(),
             "/var/lib/ollama/.ollama/models/blobs".to_string(),
             "/opt/ollama/.ollama/models/blobs".to_string(),
-            
             // HuggingFace cache
             format!("{}/.cache/huggingface/hub", home),
-            
             // Common model directories
             format!("{}/models", home),
             format!("{}/LLM", home),
             "/models".to_string(),
             "/data/models".to_string(),
             "/opt/models".to_string(),
-            
             // Current directory
             ".".to_string(),
             "./models".to_string(),
         ]);
     }
-    
+
     Ok(paths)
 }

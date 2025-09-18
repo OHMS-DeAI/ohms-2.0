@@ -4,8 +4,8 @@
 use candid::{CandidType, Principal};
 use ic_cdk::api::call::{call, CallResult};
 use ohms_shared::{
-    IntercanisterMessage, IntercanisterResponse, OHMSError, OHMSResult,
-    ComponentHealth, SystemHealth, AgentInfo, ModelInfo, JobCost
+    AgentInfo, ComponentHealth, IntercanisterMessage, IntercanisterResponse, JobCost, ModelInfo,
+    OHMSError, OHMSResult, SystemHealth,
 };
 use serde::{Deserialize, Serialize};
 
@@ -48,11 +48,7 @@ impl ModelRepoClient {
     }
 
     pub async fn health_check(&self) -> OHMSResult<ComponentHealth> {
-        let result: CallResult<(ComponentHealth,)> = call(
-            self.canister_id,
-            "health",
-            (),
-        ).await;
+        let result: CallResult<(ComponentHealth,)> = call(self.canister_id, "health", ()).await;
 
         match result {
             Ok((health,)) => Ok(health),
@@ -61,24 +57,20 @@ impl ModelRepoClient {
     }
 
     pub async fn get_model_info(&self, model_id: &str) -> OHMSResult<ModelInfo> {
-        let result: CallResult<(OHMSResult<ModelInfo>,)> = call(
-            self.canister_id,
-            "get_model_info",
-            (model_id,),
-        ).await;
+        let result: CallResult<(OHMSResult<ModelInfo>,)> =
+            call(self.canister_id, "get_model_info", (model_id,)).await;
 
         match result {
             Ok((model_result,)) => model_result,
-            Err(_) => Err(OHMSError::NetworkError("Failed to call model repository".to_string())),
+            Err(_) => Err(OHMSError::NetworkError(
+                "Failed to call model repository".to_string(),
+            )),
         }
     }
 
     pub async fn list_active_models(&self) -> OHMSResult<Vec<ModelInfo>> {
-        let result: CallResult<(Vec<ModelInfo>,)> = call(
-            self.canister_id,
-            "list_active_models",
-            (),
-        ).await;
+        let result: CallResult<(Vec<ModelInfo>,)> =
+            call(self.canister_id, "list_active_models", ()).await;
 
         match result {
             Ok((models,)) => Ok(models),
@@ -91,11 +83,14 @@ impl ModelRepoClient {
             self.canister_id,
             "notify_model_access",
             (model_id, agent_id),
-        ).await;
+        )
+        .await;
 
         match result {
             Ok((access_result,)) => access_result,
-            Err(_) => Err(OHMSError::NetworkError("Failed to notify model access".to_string())),
+            Err(_) => Err(OHMSError::NetworkError(
+                "Failed to notify model access".to_string(),
+            )),
         }
     }
 }
@@ -114,11 +109,7 @@ impl AgentClient {
     }
 
     pub async fn health_check(&self) -> OHMSResult<ComponentHealth> {
-        let result: CallResult<(ComponentHealth,)> = call(
-            self.canister_id,
-            "health",
-            (),
-        ).await;
+        let result: CallResult<(ComponentHealth,)> = call(self.canister_id, "health", ()).await;
 
         match result {
             Ok((health,)) => Ok(health),
@@ -127,41 +118,41 @@ impl AgentClient {
     }
 
     pub async fn create_agent(&self, spec: &AgentSpec) -> OHMSResult<AgentInfo> {
-        let result: CallResult<(OHMSResult<AgentInfo>,)> = call(
-            self.canister_id,
-            "create_agent",
-            (spec,),
-        ).await;
+        let result: CallResult<(OHMSResult<AgentInfo>,)> =
+            call(self.canister_id, "create_agent", (spec,)).await;
 
         match result {
             Ok((agent_result,)) => agent_result,
-            Err(_) => Err(OHMSError::NetworkError("Failed to create agent".to_string())),
+            Err(_) => Err(OHMSError::NetworkError(
+                "Failed to create agent".to_string(),
+            )),
         }
     }
 
     pub async fn get_agent_info(&self, agent_id: &str) -> OHMSResult<AgentInfo> {
-        let result: CallResult<(OHMSResult<AgentInfo>,)> = call(
-            self.canister_id,
-            "get_agent_info",
-            (agent_id,),
-        ).await;
+        let result: CallResult<(OHMSResult<AgentInfo>,)> =
+            call(self.canister_id, "get_agent_info", (agent_id,)).await;
 
         match result {
             Ok((agent_result,)) => agent_result,
-            Err(_) => Err(OHMSError::NetworkError("Failed to get agent info".to_string())),
+            Err(_) => Err(OHMSError::NetworkError(
+                "Failed to get agent info".to_string(),
+            )),
         }
     }
 
-    pub async fn send_inference_request(&self, request: &InferenceRequest) -> OHMSResult<InferenceResponse> {
-        let result: CallResult<(OHMSResult<InferenceResponse>,)> = call(
-            self.canister_id,
-            "inference",
-            (request,),
-        ).await;
+    pub async fn send_inference_request(
+        &self,
+        request: &InferenceRequest,
+    ) -> OHMSResult<InferenceResponse> {
+        let result: CallResult<(OHMSResult<InferenceResponse>,)> =
+            call(self.canister_id, "inference", (request,)).await;
 
         match result {
             Ok((inference_result,)) => inference_result,
-            Err(_) => Err(OHMSError::NetworkError("Failed to send inference request".to_string())),
+            Err(_) => Err(OHMSError::NetworkError(
+                "Failed to send inference request".to_string(),
+            )),
         }
     }
 }
@@ -180,11 +171,7 @@ impl CoordinatorClient {
     }
 
     pub async fn health_check(&self) -> OHMSResult<ComponentHealth> {
-        let result: CallResult<(ComponentHealth,)> = call(
-            self.canister_id,
-            "health",
-            (),
-        ).await;
+        let result: CallResult<(ComponentHealth,)> = call(self.canister_id, "health", ()).await;
 
         match result {
             Ok((health,)) => Ok(health),
@@ -193,41 +180,48 @@ impl CoordinatorClient {
     }
 
     pub async fn register_agent(&self, agent_info: &AgentInfo) -> OHMSResult<()> {
-        let result: CallResult<(OHMSResult<()>,)> = call(
-            self.canister_id,
-            "register_agent",
-            (agent_info,),
-        ).await;
+        let result: CallResult<(OHMSResult<()>,)> =
+            call(self.canister_id, "register_agent", (agent_info,)).await;
 
         match result {
             Ok((register_result,)) => register_result,
-            Err(_) => Err(OHMSError::NetworkError("Failed to register agent".to_string())),
+            Err(_) => Err(OHMSError::NetworkError(
+                "Failed to register agent".to_string(),
+            )),
         }
     }
 
-    pub async fn request_agent_creation(&self, request: &CoordinationRequest) -> OHMSResult<String> {
+    pub async fn request_agent_creation(
+        &self,
+        request: &CoordinationRequest,
+    ) -> OHMSResult<String> {
         let result: CallResult<(OHMSResult<String>,)> = call(
             self.canister_id,
             "analyze_instruction_and_spawn_agents",
             (request,),
-        ).await;
+        )
+        .await;
 
         match result {
             Ok((request_result,)) => request_result,
-            Err(_) => Err(OHMSError::NetworkError("Failed to request agent creation".to_string())),
+            Err(_) => Err(OHMSError::NetworkError(
+                "Failed to request agent creation".to_string(),
+            )),
         }
     }
 
-    pub async fn get_coordination_status(&self, request_id: &str) -> OHMSResult<CoordinationStatus> {
-        let result: CallResult<(OHMSResult<CoordinationStatus>,)> = call(
-            self.canister_id,
-            "get_coordination_status",
-            (request_id,),
-        ).await;
+    pub async fn get_coordination_status(
+        &self,
+        request_id: &str,
+    ) -> OHMSResult<CoordinationStatus> {
+        let result: CallResult<(OHMSResult<CoordinationStatus>,)> =
+            call(self.canister_id, "get_coordination_status", (request_id,)).await;
 
         match result {
             Ok((status_result,)) => status_result,
-            Err(_) => Err(OHMSError::NetworkError("Failed to get coordination status".to_string())),
+            Err(_) => Err(OHMSError::NetworkError(
+                "Failed to get coordination status".to_string(),
+            )),
         }
     }
 }
@@ -246,11 +240,7 @@ impl EconClient {
     }
 
     pub async fn health_check(&self) -> OHMSResult<ComponentHealth> {
-        let result: CallResult<(ComponentHealth,)> = call(
-            self.canister_id,
-            "health",
-            (),
-        ).await;
+        let result: CallResult<(ComponentHealth,)> = call(self.canister_id, "health", ()).await;
 
         match result {
             Ok((health,)) => Ok(health),
@@ -259,41 +249,42 @@ impl EconClient {
     }
 
     pub async fn get_cost_quote(&self, job_spec: &JobSpec) -> OHMSResult<JobCost> {
-        let result: CallResult<(OHMSResult<JobCost>,)> = call(
-            self.canister_id,
-            "get_cost_quote",
-            (job_spec,),
-        ).await;
+        let result: CallResult<(OHMSResult<JobCost>,)> =
+            call(self.canister_id, "get_cost_quote", (job_spec,)).await;
 
         match result {
             Ok((quote_result,)) => quote_result,
-            Err(_) => Err(OHMSError::NetworkError("Failed to get cost quote".to_string())),
+            Err(_) => Err(OHMSError::NetworkError(
+                "Failed to get cost quote".to_string(),
+            )),
         }
     }
 
-    pub async fn create_escrow(&self, job_cost: &JobCost, principal: Principal) -> OHMSResult<String> {
-        let result: CallResult<(OHMSResult<String>,)> = call(
-            self.canister_id,
-            "create_escrow",
-            (job_cost, principal),
-        ).await;
+    pub async fn create_escrow(
+        &self,
+        job_cost: &JobCost,
+        principal: Principal,
+    ) -> OHMSResult<String> {
+        let result: CallResult<(OHMSResult<String>,)> =
+            call(self.canister_id, "create_escrow", (job_cost, principal)).await;
 
         match result {
             Ok((escrow_result,)) => escrow_result,
-            Err(_) => Err(OHMSError::NetworkError("Failed to create escrow".to_string())),
+            Err(_) => Err(OHMSError::NetworkError(
+                "Failed to create escrow".to_string(),
+            )),
         }
     }
 
     pub async fn release_escrow(&self, escrow_id: &str, agent_id: &str) -> OHMSResult<()> {
-        let result: CallResult<(OHMSResult<()>,)> = call(
-            self.canister_id,
-            "release_escrow",
-            (escrow_id, agent_id),
-        ).await;
+        let result: CallResult<(OHMSResult<()>,)> =
+            call(self.canister_id, "release_escrow", (escrow_id, agent_id)).await;
 
         match result {
             Ok((release_result,)) => release_result,
-            Err(_) => Err(OHMSError::NetworkError("Failed to release escrow".to_string())),
+            Err(_) => Err(OHMSError::NetworkError(
+                "Failed to release escrow".to_string(),
+            )),
         }
     }
 }
@@ -373,7 +364,11 @@ impl OHMSClient {
         }
 
         // 5. Release escrow payment
-        if let Err(e) = self.econ.release_escrow(&escrow_id, &agent_info.agent_id).await {
+        if let Err(e) = self
+            .econ
+            .release_escrow(&escrow_id, &agent_info.agent_id)
+            .await
+        {
             ic_cdk::println!("Failed to release escrow: {:?}", e);
         }
 

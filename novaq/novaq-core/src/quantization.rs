@@ -1,11 +1,17 @@
 use ndarray::{s, Array2, ArrayBase, ArrayView1, Axis, Ix2, Zip};
 use rand::rngs::StdRng;
 use rand::Rng;
+use tracing::warn;
 
 use crate::config::QuantizationConfig;
 use crate::error::{NovaQError, Result};
 use crate::model::{CodebookStage, QuantizedSubspace, SubspaceTelemetry};
 use crate::subspace::SubspaceSpec;
+use crate::validation::validate_centroid_distinctness;
+
+/// Minimum L2 distance required between centroids to avoid degenerate clustering.
+/// Set to sqrt(eps) to allow for numerical precision while catching true duplicates.
+const MIN_CENTROID_DISTANCE: f32 = 1e-3;
 
 pub struct ProductQuantizer<'a> {
     config: &'a QuantizationConfig,
@@ -105,6 +111,10 @@ impl<'a> ProductQuantizer<'a> {
                 1,
                 rng,
             )?;
+            
+            // CRITICAL: Validate that stage1 centroids are distinct
+            validate_centroid_distinctness(&stage1.centroids, MIN_CENTROID_DISTANCE)?;
+            
             let mut stage1_contrib =
                 reconstruct_from_centroids(&stage1.centroids, &stage1.assignments);
 
@@ -122,11 +132,22 @@ impl<'a> ProductQuantizer<'a> {
                         2,
                         rng,
                     )?;
-                    stage2_contrib = Some(reconstruct_from_centroids(
-                        &state.centroids,
-                        &state.assignments,
-                    ));
-                    stage2_state = Some(state);
+                    
+                    // CRITICAL: Validate that stage2 centroids are distinct
+                    if let Err(e) = validate_centroid_distinctness(&state.centroids, MIN_CENTROID_DISTANCE) {
+                        warn!(
+                            subspace = index,
+                            error = %e,
+                            "Stage2 centroids not distinct, skipping stage2 for this subspace"
+                        );
+                        // Don't fail the entire quantization, just skip stage2 for this subspace
+                    } else {
+                        stage2_contrib = Some(reconstruct_from_centroids(
+                            &state.centroids,
+                            &state.assignments,
+                        ));
+                        stage2_state = Some(state);
+                    }
                 }
             }
 
@@ -592,7 +613,10 @@ mod tests {
         let config = QuantizationConfig::default();
         let pq = ProductQuantizer::new(&config).unwrap();
         let mut rng = StdRng::seed_from_u64(1234);
-        let data = Array2::<f32>::ones((8, 4));
+        // Use diverse data to avoid degenerate clustering
+        let data = Array2::from_shape_fn((8, 4), |(i, j)| {
+            ((i as f32) * 0.3 + (j as f32) * 0.7).sin()
+        });
         let plan = vec![SubspaceSpec {
             columns: 0..4,
             enable_stage2: true,

@@ -2,11 +2,14 @@ use std::collections::HashSet;
 
 use itertools::iproduct;
 use ndarray::{Array2, Axis};
-use tracing::{debug, instrument, trace};
+use tracing::{debug, instrument, trace, warn};
 
 use crate::error::{NovaQError, Result};
 use crate::model::{LayerAnalysis, NormalizationRecord, OutlierEntry};
+use crate::validation::validate_finite;
 
+/// Epsilon for numerical stability in division operations.
+/// Uses f32 precision to match tensor data type.
 const EPSILON: f32 = 1e-6;
 
 #[derive(Debug, Clone)]
@@ -39,6 +42,9 @@ impl Normalizer {
             return Err(NovaQError::EmptyTensor);
         }
 
+        // CRITICAL: Validate input for NaN/Inf before any processing
+        validate_finite(weights, "normalization input")?;
+
         let rows = weights.nrows();
         let cols = weights.ncols();
 
@@ -56,13 +62,22 @@ impl Normalizer {
         let outlier_count = ((magnitudes.len() as f32) * percentile).ceil() as usize;
         trace!(percentile, outlier_count, "computed outlier threshold");
 
+        // FIXED: Use deterministic sorting instead of select_nth_unstable_by
+        // This ensures reproducibility and correct handling of all values
         let mut outlier_threshold = f32::INFINITY;
         if outlier_count > 0 && outlier_count < magnitudes.len() {
-            let split_index = magnitudes.len() - outlier_count;
-            let (_, nth, _) = magnitudes.select_nth_unstable_by(split_index, |a, b| {
-                a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+            // Sort in ascending order deterministically
+            magnitudes.sort_by(|a, b| {
+                // All values are finite (validated above), so this is safe
+                a.partial_cmp(b).unwrap()
             });
-            outlier_threshold = *nth;
+            let split_index = magnitudes.len() - outlier_count;
+            outlier_threshold = magnitudes[split_index];
+            debug!(
+                outlier_threshold,
+                outlier_count,
+                "selected outlier threshold deterministically"
+            );
         }
         let mut normalized = weights.clone();
         let mut means = vec![0.0f32; cols];

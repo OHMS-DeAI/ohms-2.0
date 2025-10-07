@@ -2,7 +2,10 @@ use ndarray::{Array2, Axis};
 
 use crate::error::{NovaQError, Result};
 use crate::model::LayerAnalysis;
+use crate::validation::validate_finite;
 
+/// Epsilon for numerical stability - guards against division by zero.
+/// Uses f64 precision for high-accuracy statistical calculations.
 const EPS: f64 = 1e-12;
 
 pub fn analyze_layer(weights: &Array2<f32>) -> Result<LayerAnalysis> {
@@ -10,19 +13,35 @@ pub fn analyze_layer(weights: &Array2<f32>) -> Result<LayerAnalysis> {
         return Err(NovaQError::EmptyTensor);
     }
 
+    // CRITICAL: Validate input for NaN/Inf
+    validate_finite(weights, "layer analysis input")?;
+
     let rows = weights.nrows();
     let cols = weights.ncols();
     let len = (rows * cols) as f64;
 
-    let mut sum = 0.0f64;
+    // FIXED: Use Welford's algorithm for numerically stable variance calculation
+    // This avoids catastrophic cancellation that occurs in the naive two-pass algorithm
+    let mut mean = 0.0f64;
+    let mut m2 = 0.0f64;
     let mut sumsq = 0.0f64;
     let mut zero_count = 0usize;
     let mut max_abs = 0.0f32;
+    let mut count = 0usize;
 
     for &value in weights.iter() {
         let value64 = value as f64;
-        sum += value64;
+        count += 1;
+        
+        // Welford's online algorithm for mean and variance
+        let delta = value64 - mean;
+        mean += delta / (count as f64);
+        let delta2 = value64 - mean;
+        m2 += delta * delta2;
+        
+        // Also accumulate sum of squares for L2 norm
         sumsq += value64 * value64;
+        
         if value.abs() <= 1e-8 {
             zero_count += 1;
         }
@@ -31,9 +50,8 @@ pub fn analyze_layer(weights: &Array2<f32>) -> Result<LayerAnalysis> {
         }
     }
 
-    let mean = sum / len;
-    let second_moment = sumsq / len;
-    let variance = (second_moment - mean * mean).max(0.0);
+    let variance = if count > 1 { m2 / len } else { 0.0 };
+    let variance = variance.max(0.0); // Guard against tiny negative values from floating-point error
     let std = variance.sqrt();
 
     let mut third_central_moment = 0.0f64;
@@ -59,16 +77,22 @@ pub fn analyze_layer(weights: &Array2<f32>) -> Result<LayerAnalysis> {
     let mut max_col_var = 0.0f32;
     for col in 0..cols {
         let column = weights.index_axis(Axis(1), col);
-        let mut col_sum = 0.0f64;
-        let mut col_sumsq = 0.0f64;
+        
+        // Use Welford's algorithm for per-column variance too
+        let mut col_mean = 0.0f64;
+        let mut col_m2 = 0.0f64;
+        let mut col_count = 0usize;
         for &value in column.iter() {
             let value64 = value as f64;
-            col_sum += value64;
-            col_sumsq += value64 * value64;
+            col_count += 1;
+            let delta = value64 - col_mean;
+            col_mean += delta / (col_count as f64);
+            let delta2 = value64 - col_mean;
+            col_m2 += delta * delta2;
         }
+        
         let len_col = column.len() as f64;
-        let mean_col = col_sum / len_col;
-        let variance_col = (col_sumsq / len_col) - mean_col * mean_col;
+        let variance_col = if col_count > 1 { col_m2 / len_col } else { 0.0 };
         let variance_col = variance_col.max(0.0) as f32;
         if variance_col < min_col_var {
             min_col_var = variance_col;
@@ -90,16 +114,22 @@ pub fn analyze_layer(weights: &Array2<f32>) -> Result<LayerAnalysis> {
     let mut row_variances = Vec::with_capacity(rows);
     for row in 0..rows {
         let row_view = weights.index_axis(Axis(0), row);
-        let mut row_sum = 0.0f64;
-        let mut row_sumsq = 0.0f64;
+        
+        // Use Welford's algorithm for per-row variance too
+        let mut row_mean = 0.0f64;
+        let mut row_m2 = 0.0f64;
+        let mut row_count = 0usize;
         for &value in row_view.iter() {
             let value64 = value as f64;
-            row_sum += value64;
-            row_sumsq += value64 * value64;
+            row_count += 1;
+            let delta = value64 - row_mean;
+            row_mean += delta / (row_count as f64);
+            let delta2 = value64 - row_mean;
+            row_m2 += delta * delta2;
         }
+        
         let len_row = row_view.len() as f64;
-        let mean_row = row_sum / len_row;
-        let variance_row = (row_sumsq / len_row) - mean_row * mean_row;
+        let variance_row = if row_count > 1 { row_m2 / len_row } else { 0.0 };
         row_variances.push(variance_row.max(0.0) as f32);
     }
 

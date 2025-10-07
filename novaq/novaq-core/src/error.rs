@@ -22,6 +22,9 @@ pub enum NovaQError {
 
     #[error("internal invariant violated: {0}")]
     InvariantViolation(String),
+
+    #[error("invalid input: {reason}")]
+    InvalidInput { reason: String },
 }
 
 pub type Result<T> = std::result::Result<T, NovaQError>;

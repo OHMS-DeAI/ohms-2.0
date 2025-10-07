@@ -6,6 +6,7 @@ mod model;
 mod normalization;
 mod quantization;
 mod subspace;
+mod validation;
 
 pub use config::QuantizationConfig;
 pub use error::{NovaQError, Result};

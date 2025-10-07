@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0.0",
+  "created_at": "2025-10-07T23:03:13.593265572Z",
+  "generator": "novaq-cli/0.1.0",
+  "source_locator": "synthetic.safetensors",
+  "quantization": {
+    "config": {
+      "distillation_cosine_weight": 0.5,
+      "distillation_kl_weight": 1.0,
+      "level1_centroids": 16,
+      "level2_centroids": 8,
+      "max_iterations": 100,
+      "max_refinement_steps": 25,
+      "max_subspace_dim": 16,
+      "min_cluster_size": 4,
+      "min_subspace_dim": 4,
+      "outlier_percentile": 0.009999999776482582,
+      "refinement_learning_rate": 0.009999999776482582,
+      "residual_variance_floor": 9.999999974752427e-7,
+      "seed": 42,
+      "target_bits": 1.5,
+      "tolerance": 0.00009999999747378752,
+      "use_parallel": true
+    },
+    "summary": {
+      "average_residual_energy": 4.85722573273506e-17,
+      "global_cosine_similarity": 1.0,
+      "global_kl_divergence": 1.031015110254923e-14,
+      "global_mse": 1.5346231230228824e-14,
+      "max_residual_energy": 4.85722573273506e-17,
+      "total_compressed_bits": 2072,
+      "total_layers": 1,
+      "total_original_bits": 2048,
+      "total_parameters": 64
+    }
+  },
+  "chunks": [
+    {
+      "index": 0,
+      "path": "chunk-00000-5b2302a9039d09e3.bin",
+      "bytes": 1943,
+      "sha256": "5b2302a9039d09e3072c61dee6154f05cab03e71f093961e28fc3b3a267c45ae",
+      "blake3": "1a41f9c95d6760d3a0333f95902576d7bd61c049b6d3e276a9e8c2eb56df174a"
+    }
+  ],
+  "layers": {
+    "linear.weight": {
+      "mse": 1.5346231e-14,
+      "cosine_similarity": 1.0,
+      "kl_divergence": 1.0310151e-14,
+      "residual_energy": 4.8572257e-17,
+      "bits_per_weight": 32.375,
+      "subspaces": [
+        {
+          "columns": {
+            "end": 8,
+            "start": 0
+          },
+          "enabled_stage2": false,
+          "residual_energy": 4.85722573273506e-17,
+          "stage1_inertia": 0.0,
+          "stage1_iterations": 2,
+          "stage2_inertia": null,
+          "stage2_iterations": null
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "format": "safetensors",
+    "source": "synthetic.safetensors"
+  }
+}

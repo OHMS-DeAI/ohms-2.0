@@ -1,9 +1,33 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useAdmin } from '../hooks/useAdmin'
 import Badge from './Badge'
+import type { ComponentHealth } from '@ohms/shared-types'
+
+const badgeVariant = (status: ComponentHealth): 'success' | 'warning' | 'error' | 'info' => {
+  switch (status) {
+    case 'Healthy':
+      return 'success'
+    case 'Degraded':
+      return 'warning'
+    case 'Unknown':
+      return 'info'
+    default:
+      return 'error'
+  }
+}
 
 const SystemStatus = () => {
-  const { isAdmin, systemHealth, getSystemAlerts, isSystemHealthy } = useAdmin()
+  const {
+    isAdmin,
+    systemHealth,
+    getSystemAlerts,
+    isSystemHealthy,
+    agentHealth,
+    agentStatus,
+    econHealth,
+    econStatus,
+    getStatusLabel,
+  } = useAdmin()
   const [showDetails, setShowDetails] = useState(false)
 
   if (!isAdmin) return null
@@ -11,33 +35,22 @@ const SystemStatus = () => {
   const healthy = isSystemHealthy()
   const alerts = getSystemAlerts()
 
-  const statusVariant = (health: any) => {
-    if (!health) return 'error'
-    const status = health.status
-    if (status === 'Healthy') return 'success'
-    if (status === 'Degraded') return 'warning'
-    if (status === 'Unknown') return 'info'
-    return 'error'
-  }
-
-  const statusLabel = (health: any, fallback: string) => {
-    if (!health) return fallback
-    if (health.status) return health.status
-    return fallback
-  }
-
-  const agentVariant = (agent: any) => {
-    if (!agent) return 'error'
-    if (agent.queue_depth > 10) return 'warning'
-    return agent.model_bound ? 'success' : 'warning'
-  }
-
-  const agentLabel = (agent: any) => {
-    if (!agent) return 'Unavailable'
-    if (!agent.model_bound) return 'Unbound'
-    if (agent.queue_depth > 10) return 'Backlog'
+  const agentLabel = useMemo(() => {
+    if (!agentHealth) return 'Unavailable'
+    if (!agentHealth.model_bound) return 'Unbound'
+    if (agentHealth.queue_depth > 20) return 'Overloaded'
+    if (agentHealth.queue_depth > 10) return 'Backlog'
     return 'Healthy'
-  }
+  }, [agentHealth])
+
+  const econLabel = useMemo(() => {
+    if (!econHealth) return 'Unavailable'
+    if (econHealth.pending_settlements === 0) return 'Healthy'
+    const backlogRatio = econHealth.pending_settlements / Math.max(econHealth.total_escrows, 1)
+    if (backlogRatio > 0.6) return 'Critical backlog'
+    if (backlogRatio > 0.3) return 'Elevated backlog'
+    return 'Operational'
+  }, [econHealth])
 
   return (
     <div className="relative">
@@ -69,26 +82,26 @@ const SystemStatus = () => {
               <>
                 <div className="flex items-center justify-between text-xs">
                   <span>Model</span>
-                  <Badge variant={statusVariant(systemHealth.model)} size="sm">
-                    {statusLabel(systemHealth.model, 'Unavailable')}
+                  <Badge variant={badgeVariant(systemHealth.model?.status ?? 'Unknown')} size="sm">
+                    {systemHealth.model ? getStatusLabel(systemHealth.model.status) : 'Unavailable'}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span>Agent</span>
-                  <Badge variant={agentVariant(systemHealth.agent)} size="sm">
-                    {agentLabel(systemHealth.agent)}
+                  <Badge variant={badgeVariant(agentStatus)} size="sm">
+                    {agentLabel}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span>Coordinator</span>
-                  <Badge variant={statusVariant(systemHealth.coordinator)} size="sm">
-                    {statusLabel(systemHealth.coordinator, 'Unavailable')}
+                  <Badge variant={badgeVariant(systemHealth.coordinator?.status ?? 'Unknown')} size="sm">
+                    {systemHealth.coordinator ? getStatusLabel(systemHealth.coordinator.status) : 'Unavailable'}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span>Economics</span>
-                  <Badge variant={statusVariant(systemHealth.econ)} size="sm">
-                    {statusLabel(systemHealth.econ, 'Unavailable')}
+                  <Badge variant={badgeVariant(econStatus)} size="sm">
+                    {econLabel}
                   </Badge>
                 </div>
               </>

@@ -1376,7 +1376,9 @@ async fn check_and_finalize_proposal(proposal_id: &str) -> OHMSResult<()> {
         }
 
         GOVERNANCE_PROPOSALS.with(|proposals| {
-            proposals.borrow_mut().insert(proposal_key.clone(), proposal);
+            proposals
+                .borrow_mut()
+                .insert(proposal_key.clone(), proposal);
         });
     }
 

@@ -56,11 +56,7 @@ impl ModelRepoClient {
         }
     }
 
-    pub async fn fetch_chunk(
-        &self,
-        model_id: &str,
-        chunk_id: &str,
-    ) -> Result<Vec<u8>, String> {
+    pub async fn fetch_chunk(&self, model_id: &str, chunk_id: &str) -> Result<Vec<u8>, String> {
         let result: CallResult<(Option<Vec<u8>>,)> = call(
             self.canister_id,
             "get_chunk",
@@ -104,10 +100,7 @@ impl ModelRepoClient {
         }
     }
 
-    pub fn build_chunk_data(
-        chunk: ArtifactChunkInfo,
-        data: Vec<u8>,
-    ) -> Result<ChunkData, String> {
+    pub fn build_chunk_data(chunk: ArtifactChunkInfo, data: Vec<u8>) -> Result<ChunkData, String> {
         Self::verify_chunk_data(&chunk, &data)?;
         Ok(ChunkData { info: chunk, data })
     }

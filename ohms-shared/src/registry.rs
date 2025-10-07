@@ -1,10 +1,10 @@
 // OHMS 2.0 Canister Registry
 // Manages canister discovery and inter-canister communication
 
+use crate::{OHMSError, OHMSResult};
 use candid::{CandidType, Principal};
 use ic_cdk::api::management_canister::main::{canister_status, CanisterIdRecord};
 use ic_stable_structures::{storable::Bound, DefaultMemoryImpl, StableBTreeMap, Storable};
-use crate::{OHMSError, OHMSResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io;
@@ -80,9 +80,10 @@ impl CanisterRegistry {
         }
 
         if info.version.trim().is_empty() {
-            return Err(OHMSError::InvalidInput(
-                format!("Canister {} must report a version", info.canister_id),
-            ));
+            return Err(OHMSError::InvalidInput(format!(
+                "Canister {} must report a version",
+                info.canister_id
+            )));
         }
 
         if let Some(existing) = self.canisters.get(&key) {

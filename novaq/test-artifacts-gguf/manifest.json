@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0.0",
+  "created_at": "2025-10-07T22:45:57.473976665Z",
+  "generator": "novaq-cli/0.1.0",
+  "source_locator": "synthetic.gguf",
+  "quantization": {
+    "config": {
+      "distillation_cosine_weight": 0.5,
+      "distillation_kl_weight": 1.0,
+      "level1_centroids": 16,
+      "level2_centroids": 8,
+      "max_iterations": 100,
+      "max_refinement_steps": 25,
+      "max_subspace_dim": 16,
+      "min_cluster_size": 4,
+      "min_subspace_dim": 4,
+      "outlier_percentile": 0.009999999776482582,
+      "refinement_learning_rate": 0.009999999776482582,
+      "residual_variance_floor": 9.999999974752427e-7,
+      "seed": 42,
+      "target_bits": 1.5,
+      "tolerance": 0.00009999999747378752,
+      "use_parallel": true
+    },
+    "summary": {
+      "average_residual_energy": 4.85722573273506e-17,
+      "global_cosine_similarity": 1.0,
+      "global_kl_divergence": -9.746750932390635e-13,
+      "global_mse": 3.979039320256561e-13,
+      "max_residual_energy": 4.85722573273506e-17,
+      "total_compressed_bits": 2072,
+      "total_layers": 1,
+      "total_original_bits": 2048,
+      "total_parameters": 64
+    }
+  },
+  "chunks": [
+    {
+      "index": 0,
+      "path": "chunk-00000-ead79abea264902a.bin",
+      "bytes": 1857,
+      "sha256": "ead79abea264902ab09e0528c7b9c91a5d4634de52fc55b46e92cc367c52289a",
+      "blake3": "c47455d5f9a82ffde0f88b8ed5d2f2313b57651a6e794a711cbbb3cc71658155"
+    }
+  ],
+  "layers": {
+    "linear.weight": {
+      "mse": 3.9790393e-13,
+      "cosine_similarity": 1.0,
+      "kl_divergence": -9.746751e-13,
+      "residual_energy": 4.8572257e-17,
+      "bits_per_weight": 32.375,
+      "subspaces": [
+        {
+          "columns": {
+            "end": 8,
+            "start": 0
+          },
+          "enabled_stage2": false,
+          "residual_energy": 4.85722573273506e-17,
+          "stage1_inertia": 0.0,
+          "stage1_iterations": 2,
+          "stage2_inertia": null,
+          "stage2_iterations": null
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "format": "gguf",
+    "source": "synthetic.gguf"
+  }
+}

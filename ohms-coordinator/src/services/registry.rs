@@ -62,9 +62,7 @@ impl RegistryService {
         with_state(|state| state.models.values().cloned().collect())
     }
 
-    pub fn select_model_for_requirements(
-        requirements: &[String],
-    ) -> Option<RegisteredModel> {
+    pub fn select_model_for_requirements(requirements: &[String]) -> Option<RegisteredModel> {
         with_state(|state| {
             let mut candidates: Vec<&RegisteredModel> = state.models.values().collect();
             candidates.sort_by_key(|model| Reverse(model.last_updated));
@@ -325,14 +323,9 @@ fn model_matches_requirements(manifest: &ModelManifest, requirements: &[String])
             return true;
         }
 
-        if manifest
-            .metadata
-            .iter()
-            .any(|(key, value)| {
-                key.to_lowercase().contains(&req_lower)
-                    || value.to_lowercase().contains(&req_lower)
-            })
-        {
+        if manifest.metadata.iter().any(|(key, value)| {
+            key.to_lowercase().contains(&req_lower) || value.to_lowercase().contains(&req_lower)
+        }) {
             return true;
         }
 

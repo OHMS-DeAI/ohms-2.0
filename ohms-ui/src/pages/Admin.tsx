@@ -1,147 +1,127 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAgent } from '../context/AgentContext'
+import { useAdmin } from '../hooks/useAdmin'
 import Card from '../components/Card'
 import Button from '../components/Button'
 import LoadingSpinner from '../components/LoadingSpinner'
 import Badge from '../components/Badge'
-import {
-  createModelActor,
-  createAgentActor,
-  createCoordinatorActor,
-  createEconActor,
-} from '../services/canisterService'
+import { createEconActor, type ModelSummary } from '../services/canisterService'
+import type { RoutingStats } from '../declarations/ohms_coordinator/ohms_coordinator.did'
+import type { AuditEvent } from '../services/canisterService'
+import type { ComponentHealth } from '@ohms/shared-types'
 
-type HealthStatuses = {
-  model: any
-  agent: any
-  coordinator: any
-  econ: any
+const badgeVariant = (status: ComponentHealth): 'success' | 'warning' | 'error' | 'info' => {
+  switch (status) {
+    case 'Healthy':
+      return 'success'
+    case 'Degraded':
+      return 'warning'
+    case 'Unknown':
+      return 'info'
+    default:
+      return 'error'
+  }
+}
+
+const formatNumber = (value: number | bigint | undefined, options?: Intl.NumberFormatOptions): string => {
+  if (value === undefined) return '—'
+  const numeric = typeof value === 'bigint' ? Number(value) : value
+  if (!Number.isFinite(numeric)) return '—'
+  return new Intl.NumberFormat('en-US', options).format(numeric)
+}
+
+const formatBytes = (value: bigint | number | undefined): string => {
+  if (value === undefined) return '—'
+  const numeric = typeof value === 'bigint' ? Number(value) : value
+  if (!Number.isFinite(numeric) || numeric <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const exponent = Math.min(Math.floor(Math.log10(numeric) / 3), units.length - 1)
+  const scaled = numeric / 10 ** (exponent * 3)
+  return `${scaled.toFixed(1)} ${units[exponent]}`
+}
+
+const formatTimestamp = (value: bigint | number | undefined): string => {
+  if (value === undefined) return '—'
+  const numeric = typeof value === 'bigint' ? Number(value) : value
+  if (!Number.isFinite(numeric) || numeric === 0) return '—'
+  return new Date(numeric / 1_000_000).toLocaleString()
 }
 
 const Admin = () => {
-  const { isWalletAvailable, createAuthAgent, isAdmin: hasAdminRole, checkAdminStatus, principal } = useAgent()
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [authChecked, setAuthChecked] = useState(false)
+  const { isWalletAvailable, createAuthAgent, checkAdminStatus, principal } = useAgent()
+  const {
+    isAdmin,
+    refreshAdminData,
+    systemHealth,
+    modelStats,
+    models,
+    auditLog,
+    agentHealth,
+    agentLoader,
+    routing,
+    econHealth,
+    econPolicy,
+    econAdmins,
+    agentStatus,
+    econStatus,
+    getStatusLabel,
+  } = useAdmin()
 
+  const [authChecked, setAuthChecked] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const [health, setHealth] = useState<HealthStatuses | null>(null)
-  const [modelStats, setModelStats] = useState<{ total: number; active: number; pending: number; deprecated: number }>({ total: 0, active: 0, pending: 0, deprecated: 0 })
-  const [audit, setAudit] = useState<any[]>([])
-
-  const [agentHealth, setAgentHealth] = useState<any>(null)
-  const [loaderStats, setLoaderStats] = useState<any>(null)
-
-  const [routingHealth, setRoutingHealth] = useState<any>(null)
-  const [routingStats, setRoutingStats] = useState<any[]>([])
-
-  const [econHealth, setEconHealth] = useState<any>(null)
-  const [policy, setPolicy] = useState<any>(null)
-  const [admins, setAdmins] = useState<string[]>([])
   const [canisterAdmin, setCanisterAdmin] = useState<boolean | null>(null)
 
-  // Check admin status when component mounts
   useEffect(() => {
     const verifyAdminAccess = async () => {
       if (!isWalletAvailable) {
         setAuthChecked(true)
         return
       }
-      
+
       try {
-        // Ensure we have a connected agent (will trigger login flow if needed)
         const agent = await createAuthAgent()
-        const admin = await checkAdminStatus()
-        setIsAdmin(admin || hasAdminRole)
-        // Also record canister-side admin flag for UX
-        try {
-          if (agent) {
-            const { createEconActor } = await import('../services/canisterService')
-            const econ = createEconActor(agent as any) as any
-            const res = await econ.is_admin()
-            setCanisterAdmin(!!res)
-          }
-        } catch {
+        await checkAdminStatus()
+
+        if (agent) {
+          const econ = createEconActor(agent)
+          const res = await econ.is_admin()
+          setCanisterAdmin(Boolean(res))
+        } else {
           setCanisterAdmin(null)
         }
-        setAuthChecked(true)
-      } catch (error) {
-        // Removed console log
+      } catch (err) {
+        setError(prev => prev ?? (err instanceof Error ? err.message : 'Failed to verify admin access'))
+        setCanisterAdmin(null)
+      } finally {
         setAuthChecked(true)
       }
     }
-    
-    verifyAdminAccess()
-  }, [isWalletAvailable, createAuthAgent, hasAdminRole, checkAdminStatus])
+
+    void verifyAdminAccess()
+  }, [isWalletAvailable, createAuthAgent, checkAdminStatus])
+
+  useEffect(() => {
+    if (!authChecked || !isAdmin) {
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    refreshAdminData()
+      .catch(err => {
+        setError(err instanceof Error ? err.message : 'Failed to load admin data')
+      })
+      .finally(() => setLoading(false))
+  }, [authChecked, isAdmin, refreshAdminData])
 
   const refreshAll = async () => {
     setLoading(true)
     setError(null)
     try {
-      // Create authenticated agent when needed
-      const plugAgent = await createAuthAgent()
-      if (!plugAgent) {
-        throw new Error('Authentication required. Please connect your wallet.')
-      }
-      
-      // Model - use authenticated agent
-      const modelActor = createModelActor(plugAgent)
-      const agentActor = createAgentActor(import.meta.env.VITE_OHMS_AGENT_CANISTER_ID, plugAgent as any)
-      const coordinatorActor = createCoordinatorActor(plugAgent as any)
-      const econActor = createEconActor(plugAgent as any)
-      
-      const [models, modelAudit] = await Promise.all([
-        modelActor.list_models([]),
-        modelActor.get_audit_log(),
-      ])
-      const list = models as any[]
-      const counts = list.reduce((acc: any, m: any) => {
-        acc.total += 1
-        const st = Object.keys(m.state || {})[0] || 'Pending'
-        acc[st.toLowerCase()] = (acc[st.toLowerCase()] || 0) + 1
-        return acc
-      }, { total: 0, active: 0, pending: 0, deprecated: 0 })
-      setModelStats(counts)
-      setAudit((modelAudit as any[]).slice(-10).reverse())
-
-      // Agent
-      const ah = await (agentActor as any).health()
-      setAgentHealth(ah)
-      try {
-        const ls: any = await agentActor.get_loader_stats()
-        // get_loader_stats in agent API is Result<String, String> in our IDL mapping
-        if (ls && typeof ls === 'object' && 'Ok' in ls) {
-          const val = (ls as any).Ok
-          setLoaderStats(typeof val === 'string' ? JSON.parse(val) : val)
-        } else if (typeof ls === 'string') {
-          setLoaderStats(JSON.parse(ls))
-        }
-      } catch {}
-
-      // Coordinator
-      const ch = await coordinatorActor.health()
-      setRoutingHealth(ch)
-      try {
-        const rs: any = await coordinatorActor.get_routing_stats([])
-        if (rs && 'Ok' in rs) setRoutingStats(rs.Ok as any[])
-        else setRoutingStats([])
-      } catch {}
-
-      // Econ
-      const [eh, pol, adms] = await Promise.all([
-        econActor.health(),
-        econActor.policy(),
-        econActor.list_admins(),
-      ])
-      setEconHealth(eh)
-      setPolicy(pol)
-      setAdmins(adms as any[])
-
-      setHealth({ model: 'OK', agent: ah, coordinator: ch, econ: eh })
-    } catch (e: any) {
-      // Removed console log
-      setError(e?.message || 'Failed to load admin data')
+      await refreshAdminData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load admin data')
     } finally {
       setLoading(false)
     }
@@ -150,19 +130,20 @@ const Admin = () => {
   const activateCanisterAdmin = async () => {
     try {
       const agent = await createAuthAgent()
-      if (!agent || !principal) throw new Error('Not connected')
-      const { createEconActor } = await import('../services/canisterService')
-      const econ = createEconActor(agent as any) as any
-      const res = await econ.add_admin(principal)
-      // If Result, handle variant shape; otherwise assume success
-      if (res && typeof res === 'object' && 'Err' in res) {
-        throw new Error(res.Err as string)
+      if (!agent || !principal) {
+        throw new Error('Connect your identity before requesting admin access')
       }
-      // Re-check
+
+      const econ = createEconActor(agent)
+      const result = await econ.add_admin(principal)
+      if (result && 'Err' in result) {
+        throw new Error(result.Err)
+      }
+
       const check = await econ.is_admin()
-      setCanisterAdmin(!!check)
-    } catch (e: any) {
-      setError(e?.message || 'Failed to activate canister admin')
+      setCanisterAdmin(Boolean(check))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to grant admin permissions')
     }
   }
 
@@ -175,29 +156,32 @@ const Admin = () => {
       </div>
     )
   }
-  
+
   if (!isWalletAvailable) {
     return (
       <div className="max-w-6xl mx-auto">
         <Card className="text-center py-12">
           <h1 className="text-3xl font-bold text-accentGold mb-4">Admin</h1>
-          <p className="text-textOnDark/70 mb-4">Internet Identity v2 authentication required. Please authenticate to access admin features.</p>
+          <p className="text-textOnDark/70">Internet Identity v2 authentication is required to access admin tooling.</p>
         </Card>
       </div>
     )
   }
-  
+
   if (!isAdmin) {
     return (
       <div className="max-w-6xl mx-auto">
         <Card className="text-center py-12">
           <h1 className="text-3xl font-bold text-accentGold mb-4">Admin</h1>
-          <p className="text-textOnDark/70 mb-4">Authentication required to access admin panel.</p>
+          <p className="text-textOnDark/70 mb-4">You must be on the admin allowlist to view this dashboard.</p>
           {canisterAdmin === false && (
-            <p className="text-sm text-textOnDark/60 mb-3">Your principal is recognized in the UI allowlist, but not in the canister. If you are the deployer or an existing admin, grant yourself canister admin below.</p>
+            <p className="text-sm text-textOnDark/60 mb-3">
+              Your principal is recognised by the UI, but the economics canister does not list you as an admin.
+              If you are a deployer, promote yourself below.
+            </p>
           )}
           <div className="flex items-center justify-center gap-3">
-            <Button onClick={refreshAll}>Connect & Re-check</Button>
+            <Button onClick={refreshAll}>Reconnect &amp; Re-check</Button>
             {canisterAdmin === false && (
               <Button variant="outline" onClick={activateCanisterAdmin}>Grant Canister Admin</Button>
             )}
@@ -207,130 +191,180 @@ const Admin = () => {
     )
   }
 
+  const healthTiles = useMemo(
+    () => [
+      { name: 'Model', status: systemHealth?.model?.status ?? 'Unknown' },
+      { name: 'Coordinator', status: systemHealth?.coordinator?.status ?? 'Unknown' },
+      { name: 'Agent', status: agentStatus },
+      { name: 'Economics', status: econStatus },
+    ],
+    [systemHealth?.model?.status, systemHealth?.coordinator?.status, agentStatus, econStatus],
+  )
+
+  const topRoutingStats = useMemo(() => routing?.stats.slice(0, 5) ?? [], [routing?.stats])
+  const manifestedModels = useMemo(() => models.slice(0, 5), [models])
+  const recentAuditEvents = useMemo(() => auditLog.slice(-8).reverse(), [auditLog])
+
   return (
     <div className="max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-4xl font-bold text-accentGold mb-2">Admin Dashboards</h1>
-          <p className="text-textOnDark/70">Operations • Finance • Catalog Admin</p>
+          <p className="text-textOnDark/70">Operations • Finance • Catalog</p>
         </div>
         <Button variant="outline" onClick={refreshAll} loading={loading}>Refresh</Button>
       </div>
 
       {error && (
-        <Card className="mb-6 border-red-500/50">
-          <p className="text-red-300">Error: {error}</p>
+        <Card className="mb-6 border border-red-500/50">
+          <p className="text-red-300">{error}</p>
         </Card>
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-16"><LoadingSpinner size="lg" /></div>
+        <div className="flex items-center justify-center py-16">
+          <LoadingSpinner size="lg" />
+        </div>
       ) : (
         <div className="space-y-8">
-          {/* Health Overview */}
           <Card>
             <h3 className="text-lg font-semibold text-accentGold mb-4">Health Overview</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { name: 'Model', ok: !!health?.model },
-                { name: 'Agent', ok: !!health?.agent },
-                { name: 'Coordinator', ok: !!health?.coordinator },
-                { name: 'Economics', ok: !!health?.econ },
-              ].map((h) => (
-                <div key={h.name} className="p-3 bg-primary/40 rounded border border-accentGold/20 flex items-center justify-between">
-                  <span className="text-textOnDark/80">{h.name}</span>
-                  <Badge variant={h.ok ? 'success' : 'error'} size="sm">{h.ok ? 'OK' : 'Down'}</Badge>
+              {healthTiles.map(tile => (
+                <div key={tile.name} className="p-3 bg-primary/40 rounded border border-accentGold/20 flex items-center justify-between">
+                  <span className="text-textOnDark/80">{tile.name}</span>
+                  <Badge variant={badgeVariant(tile.status)} size="sm">{getStatusLabel(tile.status)}</Badge>
                 </div>
               ))}
             </div>
           </Card>
 
-          {/* Ops Dashboard */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
-              <h3 className="text-lg font-semibold text-accentGold mb-4">Agent Ops</h3>
+              <h3 className="text-lg font-semibold text-accentGold mb-4">Agent Operations</h3>
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <Stat label="Model Bound" value={String(agentHealth?.model_bound ?? false)} />
-                <Stat label="Queue Depth" value={String(agentHealth?.queue_depth ?? 0)} />
-                <Stat label="Cache Hit Rate" value={`${(agentHealth?.cache_hit_rate ?? 0).toFixed?.(2) ?? 0}%`} />
-                <Stat label="Warm Set Utilization" value={`${(agentHealth?.warm_set_utilization ?? 0).toFixed?.(2) ?? 0}%`} />
+                <Stat label="Model Bound" value={agentHealth ? String(agentHealth.model_bound) : '—'} />
+                <Stat label="Queue Depth" value={formatNumber(agentHealth?.queue_depth)} />
+                <Stat label="Cache Hit Rate" value={`${(agentHealth?.cache_hit_rate ?? 0).toFixed(2)}%`} />
+                <Stat label="Warm Set Utilization" value={`${(agentHealth?.warm_set_utilization ?? 0).toFixed(2)}%`} />
               </div>
-              {loaderStats && (
+              {agentLoader && (
                 <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-                  <Stat label="Chunks Loaded" value={`${loaderStats.chunks_loaded}/${loaderStats.total_chunks}`} />
-                  <Stat label="Cache Entries" value={String(loaderStats.cache_entries)} />
+                  <Stat label="Chunks Loaded" value={`${agentLoader.chunksLoaded}/${agentLoader.totalChunks}`} />
+                  <Stat label="Cache Entries" value={formatNumber(agentLoader.cacheEntries)} />
                 </div>
               )}
             </Card>
 
             <Card>
-              <h3 className="text-lg font-semibold text-accentGold mb-4">Routing & Swarm</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <Stat label="Total Agents" value={String(routingHealth?.total_agents ?? 0)} />
-                <Stat label="Active Agents" value={String(routingHealth?.active_agents ?? 0)} />
-                <Stat label="Total Bounties" value={String(routingHealth?.total_bounties ?? 0)} />
-                <Stat label="Active Bounties" value={String(routingHealth?.active_bounties ?? 0)} />
-              </div>
-              {routingStats?.length > 0 && (
-                <div className="mt-4 text-sm">
-                  <p className="text-textOnDark/70 mb-1">Top Agent Stats</p>
-                  <div className="max-h-40 overflow-y-auto space-y-1">
-                    {routingStats.slice(0, 5).map((s: any) => (
-                      <div key={s.agent_id} className="flex justify-between bg-primary/40 rounded px-2 py-1 border border-accentGold/20">
-                        <span className="truncate mr-3">{s.agent_id}</span>
-                        <span>{(s.success_rate * 100).toFixed(1)}% • {s.total_requests} req</span>
-                      </div>
-                    ))}
+              <h3 className="text-lg font-semibold text-accentGold mb-4">Routing &amp; Swarm</h3>
+              {routing ? (
+                <div className="space-y-4 text-sm">
+                  <div className="grid grid-cols-2 gap-4">
+                    <Stat label="Topology" value={Object.keys(routing.policy.topology)[0]} />
+                    <Stat label="Mode" value={Object.keys(routing.policy.mode)[0]} />
+                    <Stat label="Top K" value={String(routing.policy.top_k)} />
+                    <Stat label="Window (ms)" value={formatNumber(Number(routing.policy.window_ms))} />
                   </div>
+                  {topRoutingStats.length > 0 && (
+                    <div>
+                      <p className="text-textOnDark/70 mb-1">Top Agents</p>
+                      <div className="space-y-1">
+                        {topRoutingStats.map((stat: RoutingStats) => (
+                          <div key={stat.agent_id} className="flex justify-between bg-primary/40 rounded px-2 py-1 border border-accentGold/20">
+                            <span className="truncate mr-3">{stat.agent_id}</span>
+                            <span>
+                              {(stat.success_rate * 100).toFixed(1)}% • {stat.total_requests} req
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
+              ) : (
+                <p className="text-textOnDark/60">Routing data unavailable.</p>
               )}
             </Card>
           </div>
 
-          {/* Finance Dashboard */}
           <Card>
-            <h3 className="text-lg font-semibold text-accentGold mb-4">Finance</h3>
+            <h3 className="text-lg font-semibold text-accentGold mb-4">Economics</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <Stat label="Total Volume" value={String(econHealth?.total_volume ?? 0)} />
-              <Stat label="Protocol Fees" value={String(econHealth?.protocol_fees_collected ?? 0)} />
-              <Stat label="Active Escrows" value={String(econHealth?.active_escrows ?? 0)} />
-              <Stat label="Avg Job Cost" value={String(econHealth?.average_job_cost ?? 0)} />
+              <Stat label="Total Volume" value={`${formatNumber(econHealth?.total_volume, { notation: 'compact' })} cycles`} />
+              <Stat label="Protocol Fees" value={`${formatNumber(econHealth?.protocol_fees_collected, { notation: 'compact' })} cycles`} />
+              <Stat label="Active Escrows" value={formatNumber(econHealth?.active_escrows)} />
+              <Stat label="Pending Settlements" value={formatNumber(econHealth?.pending_settlements)} />
             </div>
-            {policy && (
+            {econPolicy && (
               <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <Stat label="Protocol Fee %" value={`${policy.protocol_fee_percentage}%`} />
-                <Stat label="Agent Fee %" value={`${policy.agent_fee_percentage}%`} />
-                <Stat label="Min Fee" value={String(policy.minimum_fee)} />
-                <Stat label="Admins" value={String(admins.length)} />
+                <Stat label="Protocol Fee %" value={`${econPolicy.protocol_fee_percentage.toFixed(2)}%`} />
+                <Stat label="Agent Fee %" value={`${econPolicy.agent_fee_percentage.toFixed(2)}%`} />
+                <Stat label="Minimum Fee" value={formatNumber(econPolicy.minimum_fee)} />
+                <Stat label="Registered Admins" value={String(econAdmins.length)} />
               </div>
             )}
           </Card>
 
-          {/* Catalog Admin */}
           <Card>
-            <h3 className="text-lg font-semibold text-accentGold mb-4">Catalog Admin</h3>
+            <h3 className="text-lg font-semibold text-accentGold mb-4">Model Catalog</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
-              <Stat label="Total Models" value={String(modelStats.total)} />
-              <Stat label="Active" value={String(modelStats.active)} />
-              <Stat label="Pending" value={String(modelStats.pending)} />
-              <Stat label="Deprecated" value={String(modelStats.deprecated)} />
+              <Stat label="Total Models" value={formatNumber(modelStats.total)} />
+              <Stat label="Active" value={formatNumber(modelStats.active)} />
+              <Stat label="Pending" value={formatNumber(modelStats.pending)} />
+              <Stat label="Deprecated" value={formatNumber(modelStats.deprecated)} />
             </div>
-            <div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left text-textOnDark/60">
+                    <th className="py-2 pr-4">Model</th>
+                    <th className="py-2 pr-4">Version</th>
+                    <th className="py-2 pr-4">Quantization</th>
+                    <th className="py-2 pr-4">Size</th>
+                    <th className="py-2">State</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {manifestedModels.map((summary: ModelSummary) => (
+                    <tr key={`${summary.info.model_id}-${summary.info.version}`} className="border-t border-accentGold/10">
+                      <td className="py-2 pr-4 font-mono text-xs">{summary.info.model_id}</td>
+                      <td className="py-2 pr-4">{summary.info.version}</td>
+                      <td className="py-2 pr-4">{typeof summary.info.quantization_format === 'string' ? summary.info.quantization_format : summary.info.quantization_format.Custom}</td>
+                      <td className="py-2 pr-4">{formatBytes(summary.info.size_bytes)}</td>
+                      <td className="py-2">
+                        <Badge variant={badgeVariant(summary.info.state === 'Active' ? 'Healthy' : 'Degraded')} size="sm">
+                          {summary.info.state}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-6">
               <p className="text-textOnDark/70 mb-2">Recent Audit Events</p>
-              <div className="space-y-2 max-h-56 overflow-y-auto">
-                {audit.map((e: any, idx: number) => (
-                  <div key={idx} className="text-sm bg-primary/40 border border-accentGold/20 rounded px-3 py-2">
-                    <div className="flex justify-between">
-                      <span className="font-mono text-xs">{e.model_id}</span>
-                      <span className="text-textOnDark/60 text-xs">{new Date(Number(e.timestamp || 0)).toLocaleString()}</span>
+              {recentAuditEvents.length === 0 ? (
+                <p className="text-sm text-textOnDark/60">No audit entries recorded.</p>
+              ) : (
+                <div className="space-y-2 max-h-56 overflow-y-auto">
+                  {recentAuditEvents.map((event: AuditEvent, idx: number) => (
+                    <div key={`${event.model_id}-${idx}`} className="text-sm bg-primary/40 border border-accentGold/20 rounded px-3 py-2">
+                      <div className="flex justify-between">
+                        <span className="font-mono text-xs">{event.model_id}</span>
+                        <span className="text-textOnDark/60 text-xs">{formatTimestamp(event.timestamp)}</span>
+                      </div>
+                      <div className="flex justify-between mt-1">
+                        <span className="text-textOnDark/80">{Object.keys(event.event_type)[0] ?? 'Event'}</span>
+                        {event.details && (
+                          <span className="text-textOnDark/60 truncate ml-3">{event.details}</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex justify-between mt-1">
-                      <span className="text-textOnDark/80">{Object.keys(e.event_type || {})[0]}</span>
-                      <span className="text-textOnDark/60 truncate ml-3">{e.details}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </Card>
         </div>
@@ -347,5 +381,3 @@ const Stat = ({ label, value }: { label: string; value: string }) => (
 )
 
 export default Admin
-
-

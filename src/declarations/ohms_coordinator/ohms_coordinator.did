@@ -1,0 +1,204 @@
+type AgentCreationResult = record {
+  request_id : text;
+  status : AgentCreationStatus;
+  creation_time_ms : nat64;
+  created_agents : vec text;
+};
+type AgentCreationStatus = variant {
+  Failed;
+  InProgress;
+  Completed;
+  QuotaExceeded;
+};
+type AgentRegistration = record {
+  capabilities : vec text;
+  canister_id : text;
+  agent_principal : text;
+  agent_id : text;
+  health_score : float32;
+  last_seen : nat64;
+  registered_at : nat64;
+  model_id : text;
+};
+type AgentSpawningMetrics = record {
+  user_active_agents : nat32;
+  average_creation_time_ms : nat64;
+  user_agents_created : nat32;
+  success_rate : float32;
+  total_agent_creations : nat32;
+  total_instruction_requests : nat32;
+};
+type AgentSpec = record {
+  model_requirements : vec text;
+  required_capabilities : vec text;
+  agent_type : text;
+  specialization : text;
+};
+type ArtifactChunkInfo = record {
+  sha256 : text;
+  size_bytes : nat64;
+  offset : nat64;
+  chunk_id : text;
+};
+type ComponentHealth = variant { Unhealthy; Healthy; Degraded; Unknown };
+type CoordinationNetworkInfo = record {
+  status : text;
+  network_id : text;
+  created_at : nat64;
+  last_activity : nat64;
+  coordinator_agent : text;
+  participant_count : nat32;
+};
+type EconHealth = record {
+  active_escrows : nat32;
+  total_escrows : nat32;
+  total_receipts : nat32;
+  protocol_fees_collected : nat64;
+  total_volume : nat64;
+  average_job_cost : float64;
+  pending_settlements : nat32;
+};
+type InstructionAnalysisResult = record {
+  request_id : text;
+  quota_check : QuotaCheckResult;
+  suggested_agents : vec AgentSpec;
+  parsed_requirements : vec text;
+  coordination_plan : text;
+};
+type InstructionRequest = record {
+  request_id : text;
+  user_principal : text;
+  agent_count : opt nat32;
+  model_preferences : vec text;
+  created_at : nat64;
+  instructions : text;
+};
+type ModelManifest = record {
+  metadata : vec record { text; text };
+  activated_at : opt nat64;
+  quantization : QuantizedArtifactMetadata;
+  total_size_bytes : nat64;
+  version : text;
+  state : ModelState;
+  chunk_count : nat32;
+  checksum : text;
+  chunks : vec ArtifactChunkInfo;
+  model_id : text;
+  uploaded_at : nat64;
+};
+type ModelState = variant { Active; Deprecated; Pending };
+type OrchestrationMode = variant { Adaptive; Parallel; Sequential };
+type QuantizationFormat = variant { NOVAQ; GGUF; Custom : text };
+type QuantizedArtifactMetadata = record {
+  bits_per_weight : opt float32;
+  artifact_checksum : text;
+  notes : opt text;
+  accuracy_retention : float32;
+  compression_ratio : float32;
+  format : QuantizationFormat;
+};
+type QuotaCheckResult = record {
+  tier : text;
+  quota_available : bool;
+  remaining_agents : nat32;
+  monthly_limit : nat32;
+};
+type QuotaRemaining = record {
+  inferences_remaining : nat32;
+  agents_remaining : nat32;
+  tokens_remaining : nat64;
+};
+type QuotaValidation = record {
+  allowed : bool;
+  remaining_quota : opt QuotaRemaining;
+  reason : opt text;
+};
+type Result = variant { Ok : text; Err : text };
+type Result_1 = variant { Ok : AgentRegistration; Err : text };
+type Result_10 = variant { Ok : vec AgentRegistration; Err : text };
+type Result_11 = variant { Ok : vec InstructionRequest; Err : text };
+type Result_12 = variant { Ok; Err : text };
+type Result_13 = variant { Ok : RouteResponse; Err : text };
+type Result_14 = variant { Ok : QuotaValidation; Err : text };
+type Result_2 = variant { Ok : AgentCreationResult; Err : text };
+type Result_3 = variant { Ok : AgentSpawningMetrics; Err : text };
+type Result_4 = variant { Ok : vec CoordinationNetworkInfo; Err : text };
+type Result_5 = variant { Ok : EconHealth; Err : text };
+type Result_6 = variant { Ok : InstructionAnalysisResult; Err : text };
+type Result_7 = variant { Ok : vec RoutingStats; Err : text };
+type Result_8 = variant { Ok : SubscriptionTierInfo; Err : text };
+type Result_9 = variant { Ok : QuotaCheckResult; Err : text };
+type RouteRequest = record {
+  request_id : text;
+  requester : text;
+  routing_mode : RoutingMode;
+  capabilities_required : vec text;
+  payload : blob;
+};
+type RouteResponse = record {
+  request_id : text;
+  selection_criteria : text;
+  selected_agents : vec text;
+  routing_time_ms : nat64;
+};
+type RoutingMode = variant { Unicast; Broadcast; AgentSpawning };
+type RoutingStats = record {
+  average_response_time_ms : float64;
+  total_requests : nat64;
+  capability_scores : vec record { text; float32 };
+  agent_id : text;
+  success_rate : float32;
+};
+type SubscriptionTierInfo = record {
+  max_agents : nat32;
+  tokens_used_this_month : nat64;
+  current_tier : text;
+  agents_created_this_month : nat32;
+  inference_rate : text;
+  token_limit : nat64;
+  last_reset_date : nat64;
+  monthly_creations : nat32;
+};
+type SwarmPolicy = record {
+  top_k : nat32;
+  mode : OrchestrationMode;
+  window_ms : nat64;
+  topology : SwarmTopology;
+};
+type SwarmTopology = variant { Hierarchical; Mesh; Ring; Star };
+type SystemHealth = record {
+  status : ComponentHealth;
+  memory_usage_mb : float32;
+  metrics : vec record { text; text };
+  canister_id : principal;
+  version : text;
+  uptime_seconds : nat64;
+  last_update : nat64;
+};
+service : {
+  create_agents_from_instructions : (text, opt nat32) -> (Result);
+  get_agent : (text) -> (Result_1) query;
+  get_agent_creation_status : (text) -> (Result_2) query;
+  get_agent_spawning_metrics : () -> (Result_3) query;
+  get_coordination_networks : () -> (Result_4) query;
+  get_economics_health : () -> (Result_5);
+  get_instruction_analysis : (text) -> (Result_6) query;
+  get_routing_stats : (opt text) -> (Result_7) query;
+  get_subscription_tier_info : () -> (Result_8) query;
+  get_swarm_policy : () -> (SwarmPolicy) query;
+  get_user_quota_status : () -> (Result_9);
+  health : () -> (SystemHealth) query;
+  list_agents : () -> (Result_10) query;
+  list_instruction_requests : () -> (Result_11) query;
+  list_user_agents : () -> (Result_10) query;
+  notify_model_deletion : (text) -> (Result_12);
+  notify_model_upload : (ModelManifest) -> (Result_12);
+  register_agent : (AgentRegistration) -> (Result);
+  route_best_result : (RouteRequest, nat32, nat64) -> (Result_13);
+  route_request : (RouteRequest) -> (Result_13);
+  set_swarm_policy : (SwarmPolicy) -> (Result_12);
+  update_agent_health : (text, float32) -> (Result_12);
+  update_agent_status : (text, text) -> (Result_12);
+  upgrade_subscription_tier : (text) -> (Result_12);
+  validate_token_usage_quota : (nat64) -> (Result_14);
+}

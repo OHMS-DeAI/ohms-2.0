@@ -144,13 +144,15 @@ impl AgentSpawningService {
         // Generate unique agent ID
         let agent_id = format!("agent_{}_{}_{}", user_principal, spec.agent_type, time());
 
-        let selected_model = RegistryService::select_model_for_requirements(&spec.model_requirements)
-            .ok_or_else(|| {
-                format!(
-                    "No registered model satisfies requirements {:?}",
-                    spec.model_requirements
-                )
-            })?;
+        let selected_model = RegistryService::select_model_for_requirements(
+            &spec.model_requirements,
+        )
+        .ok_or_else(|| {
+            format!(
+                "No registered model satisfies requirements {:?}",
+                spec.model_requirements
+            )
+        })?;
 
         let model_id = selected_model.manifest.model_id.clone();
 

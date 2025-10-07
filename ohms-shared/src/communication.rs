@@ -1,14 +1,14 @@
 // OHMS 2.0 Inter-Canister Communication Module
 // This module handles communication between all OHMS canisters
 
-use candid::{CandidType, Principal};
-use ic_cdk::api::call::{call, CallResult};
-use std::collections::HashMap;
 use crate::{
     registry::{self, CanisterType},
     AgentInfo, ComponentHealth, JobCost, ModelInfo, OHMSError, OHMSResult, SystemHealth,
 };
+use candid::{CandidType, Principal};
+use ic_cdk::api::call::{call, CallResult};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 // ==============================================================================
 // Canister ID Management
@@ -32,15 +32,11 @@ impl CanisterIds {
             let model = registry
                 .get_canister_by_type(&CanisterType::ModelRepository)
                 .ok_or_else(|| {
-                    OHMSError::NotFound(
-                        "Model repository canister not registered".to_string(),
-                    )
+                    OHMSError::NotFound("Model repository canister not registered".to_string())
                 })?;
             let agent = registry
                 .get_canister_by_type(&CanisterType::AgentFactory)
-                .ok_or_else(|| {
-                    OHMSError::NotFound("Agent canister not registered".to_string())
-                })?;
+                .ok_or_else(|| OHMSError::NotFound("Agent canister not registered".to_string()))?;
             let coordinator = registry
                 .get_canister_by_type(&CanisterType::Coordinator)
                 .ok_or_else(|| {
@@ -351,13 +347,10 @@ impl OHMSClient {
         let mut metrics: HashMap<String, String> = HashMap::new();
         let mut statuses = Vec::with_capacity(4);
 
-        let mut record_status = |label: &str, result: &Result<ComponentHealth, OHMSError>| {
-            match result {
+        let mut record_status =
+            |label: &str, result: &Result<ComponentHealth, OHMSError>| match result {
                 Ok(status) => {
-                    metrics.insert(
-                        format!("{}.status", label),
-                        format!("{:?}", status),
-                    );
+                    metrics.insert(format!("{}.status", label), format!("{:?}", status));
                     statuses.push(status.clone());
                 }
                 Err(err) => {
@@ -365,8 +358,7 @@ impl OHMSClient {
                     metrics.insert(format!("{}.error", label), err.to_string());
                     statuses.push(ComponentHealth::Unhealthy);
                 }
-            }
-        };
+            };
 
         record_status("model", &model_health);
         record_status("agent", &agent_health);

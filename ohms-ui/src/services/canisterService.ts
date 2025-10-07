@@ -1,833 +1,983 @@
-import { Actor, ActorSubclass, HttpAgent } from '@dfinity/agent';
+import { Actor, type ActorSubclass, HttpAgent } from '@dfinity/agent'
+import type { Principal } from '@dfinity/principal'
 import { HOST as RESOLVED_HOST, NETWORK, getCanisterIdsFromEnv } from '../config/network'
 import { idlFactory as agentIdlFactory } from '../declarations/ohms_agent'
+import { idlFactory as modelIdlFactory } from '../declarations/ohms_model'
+import { idlFactory as coordinatorIdlFactory } from '../declarations/ohms_coordinator'
+import { idlFactory as econIdlFactory } from '../declarations/ohms_econ'
 import type {
-  _SERVICE as AgentCanister,
   AgentCreationRequest as CandidAgentCreationRequest,
-  InferenceRequest as CandidInferenceRequest,
-  Result_AgentCreation as CandidResultAgentCreation,
-  Result_Inference as CandidResultInference,
+  AgentCreationResult as CandidAgentCreationResult,
+  AgentHealth,
   AgentSummary as CandidAgentSummary,
-  Result_Summaries as CandidResultSummaries
+  AgentStatus,
+  AgentType as CandidAgentType,
+  InferenceRequest as CandidInferenceRequest,
+  InferenceResponse as CandidInferenceResponse,
+  Result_Empty,
+  Result_AgentCreation,
+  Result_Inference,
+  Result_Summaries,
+  _SERVICE as AgentService,
 } from '../declarations/ohms_agent/ohms_agent.did'
+import type {
+  AuditEvent,
+  ModelInfo as CandidModelInfo,
+  ModelManifest as CandidModelManifest,
+  ModelState as CandidModelState,
+  QuantizationFormat as CandidQuantizationFormat,
+  QuantizedArtifactMetadata as CandidQuantizedMetadata,
+  SystemHealth as CandidModelHealth,
+  _SERVICE as ModelService,
+} from '../declarations/ohms_model/ohms_model.did'
+import type {
+  AgentRegistration,
+  RouteRequest,
+  RouteResponse,
+  RoutingStats,
+  SwarmPolicy,
+  SystemHealth as CandidCoordinatorHealth,
+  _SERVICE as CoordinatorService,
+} from '../declarations/ohms_coordinator/ohms_coordinator.did'
+import type {
+  EconHealth,
+  FeePolicy,
+  PaymentRequest,
+  PaymentStats,
+  QuotaValidation as CandidQuotaValidation,
+  UserSubscription,
+  _SERVICE as EconService,
+} from '../declarations/ohms_econ/ohms_econ.did'
+import type {
+  AgentStatus as SharedAgentStatus,
+  AgentType as SharedAgentType,
+  ModelInfo as SharedModelInfo,
+  ModelManifest as SharedModelManifest,
+  QuantizationFormat as SharedQuantizationFormat,
+  SystemHealth as SharedSystemHealth,
+} from '@ohms/shared-types'
 
-// Centralized host/network resolution
-export const host = RESOLVED_HOST;
+export type { CandidAgentCreationRequest, CandidAgentCreationResult, CandidInferenceRequest, CandidInferenceResponse }
 
-// Create an agent
-export const agent = new HttpAgent({ host });
+export const host = RESOLVED_HOST
+
+export const agent = new HttpAgent({ host })
 if (NETWORK !== 'ic') {
-  // Fetch the root key for local development to validate certificates
-  agent.fetchRootKey?.().catch(() => {
-    // Ignore root key fetch errors in local development
-  });
-}
-
-// Canister IDs from env via network config
-const { ohms_model: OHMS_MODEL_CANISTER_ID, ohms_agent: OHMS_AGENT_CANISTER_ID, ohms_coordinator: OHMS_COORDINATOR_CANISTER_ID, ohms_econ: OHMS_ECON_CANISTER_ID } = getCanisterIdsFromEnv()
-
-// Candid interface definitions - matching actual deployed interfaces
-const modelCanisterIdl = ({ IDL }: any) => {
-  const ComponentHealth = IDL.Variant({
-    Healthy: IDL.Null,
-    Degraded: IDL.Null,
-    Unhealthy: IDL.Null,
-    Unknown: IDL.Null,
-  });
-
-  const SystemHealth = IDL.Record({
-    canister_id: IDL.Principal,
-    status: ComponentHealth,
-    uptime_seconds: IDL.Nat64,
-    memory_usage_mb: IDL.Float32,
-    last_update: IDL.Nat64,
-    version: IDL.Text,
-    metrics: IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
-  });
-
-  const QuantizationFormat = IDL.Variant({ NOVAQ: IDL.Null, GGUF: IDL.Null, Custom: IDL.Text });
-  const ModelState = IDL.Variant({ Pending: IDL.Null, Active: IDL.Null, Deprecated: IDL.Null });
-  const QuantizedArtifactMetadata = IDL.Record({
-    format: QuantizationFormat,
-    artifact_checksum: IDL.Text,
-    compression_ratio: IDL.Float32,
-    accuracy_retention: IDL.Float32,
-    bits_per_weight: IDL.Opt(IDL.Float32),
-    notes: IDL.Opt(IDL.Text),
-  });
-  const ArtifactChunkInfo = IDL.Record({
-    chunk_id: IDL.Text,
-    offset: IDL.Nat64,
-    size_bytes: IDL.Nat64,
-    sha256: IDL.Text,
-  });
-  const ModelManifest = IDL.Record({
-    model_id: IDL.Text,
-    version: IDL.Text,
-    state: ModelState,
-    uploaded_at: IDL.Nat64,
-    activated_at: IDL.Opt(IDL.Nat64),
-    total_size_bytes: IDL.Nat64,
-    chunk_count: IDL.Nat32,
-    checksum: IDL.Text,
-    quantization: QuantizedArtifactMetadata,
-    metadata: IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
-    chunks: IDL.Vec(ArtifactChunkInfo),
-  });
-  const ModelInfo = IDL.Record({
-    model_id: IDL.Text,
-    version: IDL.Text,
-    state: ModelState,
-    quantization_format: QuantizationFormat,
-    compression_ratio: IDL.Opt(IDL.Float32),
-    accuracy_retention: IDL.Opt(IDL.Float32),
-    size_bytes: IDL.Nat64,
-    uploaded_at: IDL.Nat64,
-    activated_at: IDL.Opt(IDL.Nat64),
-  });
-
-  const ArtifactChunkUpload = IDL.Record({
-    chunk_id: IDL.Text,
-    order: IDL.Nat32,
-    data: IDL.Vec(IDL.Nat8),
-    sha256: IDL.Text,
-  });
-
-  const ModelUploadRequest = IDL.Record({
-    name: IDL.Text,
-    description: IDL.Text,
-    model_type: IDL.Text,
-    version: IDL.Text,
-    quantization: QuantizedArtifactMetadata,
-    metadata: IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
-    chunks: IDL.Vec(ArtifactChunkUpload),
-  });
-
-  const ModelUploadResponse = IDL.Record({
-    model_id: IDL.Text,
-    upload_time: IDL.Nat64,
-    checksum: IDL.Text,
-    total_size_bytes: IDL.Nat64,
-    chunk_count: IDL.Nat32,
-  });
-
-  const ModelStatus = IDL.Variant({ Uploading: IDL.Null, Ready: IDL.Null, Deployed: IDL.Null, Failed: IDL.Null, Deleted: IDL.Null });
-
-  const OHMSError = IDL.Variant({
-    InvalidInput: IDL.Text,
-    InvalidState: IDL.Text,
-    AlreadyExists: IDL.Text,
-    NotFound: IDL.Text,
-    Unauthorized: IDL.Text,
-    InternalError: IDL.Text,
-    NetworkError: IDL.Text,
-    CommunicationFailed: IDL.Text,
-    QuotaExceeded: IDL.Text,
-    InsufficientFunds: IDL.Text,
-    ModelNotReady: IDL.Text,
-    CompressionFailed: IDL.Text,
-  });
-
-  const ResultUpload = IDL.Variant({ Ok: ModelUploadResponse, Err: OHMSError });
-  const ResultStatus = IDL.Variant({ Ok: ModelStatus, Err: OHMSError });
-  const ResultUnit = IDL.Variant({ Ok: IDL.Null, Err: OHMSError });
-  const ResultModelInfo = IDL.Variant({ Ok: ModelInfo, Err: OHMSError });
-
-  return IDL.Service({
-    health_check: IDL.Func([], [SystemHealth], ['query']),
-    list_models: IDL.Func([IDL.Opt(IDL.Principal)], [IDL.Vec(ModelInfo)], ['query']),
-    list_active_models: IDL.Func([], [IDL.Vec(ModelInfo)], ['query']),
-    get_model_info: IDL.Func([IDL.Text], [ResultModelInfo], ['query']),
-    get_manifest: IDL.Func([IDL.Text], [IDL.Opt(ModelManifest)], ['query']),
-    upload_model: IDL.Func([ModelUploadRequest], [ResultUpload], []),
-    deploy_model: IDL.Func([IDL.Text], [ResultUnit], []),
-    delete_model: IDL.Func([IDL.Text], [ResultUnit], []),
-    get_model_status: IDL.Func([IDL.Text], [ResultStatus], ['query']),
-  });
-};
-
-const coordinatorCanisterIdl = ({ IDL }: any) => {
-  // Result variants matching the actual canister
-  const Result = IDL.Variant({ Ok: IDL.Text, Err: IDL.Text });
-  const Result_8 = IDL.Variant({ Ok: IDL.Null, Err: IDL.Text });
-
-  const ComponentHealth = IDL.Variant({
-    Healthy: IDL.Null,
-    Degraded: IDL.Null,
-    Unhealthy: IDL.Null,
-    Unknown: IDL.Null,
-  });
-
-  const SystemHealth = IDL.Record({
-    canister_id: IDL.Principal,
-    status: ComponentHealth,
-    uptime_seconds: IDL.Nat64,
-    memory_usage_mb: IDL.Float32,
-    last_update: IDL.Nat64,
-    version: IDL.Text,
-    metrics: IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
-  });
-
-  // OHMS 2.0 Types from actual ohms-coordinator.did
-  const RoutingMode = IDL.Variant({ Unicast: IDL.Null, Broadcast: IDL.Null, AgentSpawning: IDL.Null });
-  const AgentRegistration = IDL.Record({
-    agent_id: IDL.Text,
-    agent_principal: IDL.Text,
-    canister_id: IDL.Text,
-    capabilities: IDL.Vec(IDL.Text),
-    model_id: IDL.Text,
-    health_score: IDL.Float32,
-    registered_at: IDL.Nat64,
-    last_seen: IDL.Nat64,
-  });
-  const RouteRequest = IDL.Record({
-    request_id: IDL.Text,
-    requester: IDL.Text,
-    capabilities_required: IDL.Vec(IDL.Text),
-    payload: IDL.Vec(IDL.Nat8),
-    routing_mode: RoutingMode,
-  });
-  const RouteResponse = IDL.Record({
-    request_id: IDL.Text,
-    selected_agents: IDL.Vec(IDL.Text),
-    routing_time_ms: IDL.Nat64,
-    selection_criteria: IDL.Text,
-  });
-  const RoutingStats = IDL.Record({
-    agent_id: IDL.Text,
-    total_requests: IDL.Nat64,
-    success_rate: IDL.Float32,
-    average_response_time_ms: IDL.Float64,
-  });
-  const SwarmTopology = IDL.Variant({ Mesh: IDL.Null, Hierarchical: IDL.Null, Ring: IDL.Null, Star: IDL.Null });
-  const OrchestrationMode = IDL.Variant({ Parallel: IDL.Null, Sequential: IDL.Null, Adaptive: IDL.Null });
-  const SwarmPolicy = IDL.Record({
-    topology: SwarmTopology,
-    mode: OrchestrationMode,
-    top_k: IDL.Nat32,
-    window_ms: IDL.Nat64,
-  });
-
-  // OHMS 2.0 Agent Spawning Types
-  const InstructionRequest = IDL.Record({
-    request_id: IDL.Text,
-    user_principal: IDL.Text,
-    instructions: IDL.Text,
-    agent_count: IDL.Opt(IDL.Nat32),
-    capabilities_required: IDL.Vec(IDL.Text),
-    priority: IDL.Text,
-    created_at: IDL.Nat64,
-  });
-
-  const AgentCreationStatus = IDL.Variant({ 
-    Pending: IDL.Null, 
-    InProgress: IDL.Null, 
-    Completed: IDL.Null, 
-    Failed: IDL.Null 
-  });
-
-  const AgentCreationResult = IDL.Record({
-    request_id: IDL.Text,
-    agent_ids: IDL.Vec(IDL.Text),
-    status: AgentCreationStatus,
-    created_at: IDL.Nat64,
-    completed_at: IDL.Opt(IDL.Nat64),
-    error_message: IDL.Opt(IDL.Text),
-  });
-
-  const AgentSpec = IDL.Record({
-    agent_id: IDL.Text,
-    capabilities: IDL.Vec(IDL.Text),
-    behavior_rules: IDL.Vec(IDL.Text),
-    coordination_network: IDL.Opt(IDL.Text),
-  });
-
-  const InstructionAnalysisResult = IDL.Record({
-    request_id: IDL.Text,
-    estimated_agents: IDL.Nat32,
-    required_capabilities: IDL.Vec(IDL.Text),
-    complexity_score: IDL.Float32,
-    estimated_duration: IDL.Nat64,
-    coordination_needs: IDL.Vec(IDL.Text),
-  });
-
-  const QuotaCheckResult = IDL.Record({
-    allowed: IDL.Bool,
-    remaining_quota: IDL.Opt(IDL.Record({
-      agents_remaining: IDL.Nat32,
-      tokens_remaining: IDL.Nat64,
-      inferences_remaining: IDL.Nat32,
-    })),
-    reason: IDL.Opt(IDL.Text),
-  });
-
-  // OHMS 2.0 Economics Integration Types
-  const UserSubscription = IDL.Record({
-    principal_id: IDL.Text,
-    tier: IDL.Record({
-      name: IDL.Text,
-      monthly_fee_usd: IDL.Nat32,
-      max_agents: IDL.Nat32,
-      monthly_agent_creations: IDL.Nat32,
-      token_limit: IDL.Nat64,
-      inference_rate: IDL.Variant({ Standard: IDL.Null, Priority: IDL.Null, Premium: IDL.Null }),
-      features: IDL.Vec(IDL.Text),
-    }),
-    started_at: IDL.Nat64,
-    expires_at: IDL.Nat64,
-    auto_renew: IDL.Bool,
-    current_usage: IDL.Record({
-      agents_created_this_month: IDL.Nat32,
-      tokens_used_this_month: IDL.Nat64,
-      inferences_this_month: IDL.Nat32,
-      last_reset_date: IDL.Nat64,
-    }),
-    payment_status: IDL.Variant({ Active: IDL.Null, Pending: IDL.Null, Failed: IDL.Null, Cancelled: IDL.Null }),
-    created_at: IDL.Nat64,
-    updated_at: IDL.Nat64,
-  });
-
-  const EconHealth = IDL.Record({
-    total_escrows: IDL.Nat32,
-    active_escrows: IDL.Nat32,
-    total_receipts: IDL.Nat32,
-    pending_settlements: IDL.Nat32,
-    total_volume: IDL.Nat64,
-    protocol_fees_collected: IDL.Nat64,
-    average_job_cost: IDL.Float64,
-  });
-
-  const QuotaValidation = IDL.Record({
-    allowed: IDL.Bool,
-    reason: IDL.Opt(IDL.Text),
-    remaining_quota: IDL.Opt(IDL.Record({
-      agents_remaining: IDL.Nat32,
-      tokens_remaining: IDL.Nat64,
-      inferences_remaining: IDL.Nat32,
-    })),
-  });
-
-  // Result variants
-  const Result_1 = IDL.Variant({ Ok: AgentRegistration, Err: IDL.Text });
-  const Result_2 = IDL.Variant({ Ok: RouteResponse, Err: IDL.Text });
-  const Result_5 = IDL.Variant({ Ok: IDL.Vec(AgentRegistration), Err: IDL.Text });
-  const Result_7 = IDL.Variant({ Ok: IDL.Vec(RoutingStats), Err: IDL.Text });
-  const Result_InstructionAnalysis = IDL.Variant({ Ok: InstructionAnalysisResult, Err: IDL.Text });
-  const Result_AgentCreation = IDL.Variant({ Ok: AgentCreationResult, Err: IDL.Text });
-  const Result_QuotaCheck = IDL.Variant({ Ok: QuotaCheckResult, Err: IDL.Text });
-  const Result_UserSubscription = IDL.Variant({ Ok: UserSubscription, Err: IDL.Text });
-  const Result_EconHealth = IDL.Variant({ Ok: EconHealth, Err: IDL.Text });
-  const Result_QuotaValidation = IDL.Variant({ Ok: QuotaValidation, Err: IDL.Text });
-
-  return IDL.Service({
-    // Health & registry - matching actual interface
-    health: IDL.Func([], [SystemHealth], ['query']),
-    list_agents: IDL.Func([], [Result_5], ['query']),
-    get_agent: IDL.Func([IDL.Text], [Result_1], ['query']),
-    register_agent: IDL.Func([AgentRegistration], [Result], []),
-    update_agent_health: IDL.Func([IDL.Text, IDL.Float32], [Result_8], []),
-
-    // Routing
-    route_request: IDL.Func([RouteRequest], [Result_2], []),
-    route_best_result: IDL.Func([RouteRequest, IDL.Nat32, IDL.Nat64], [Result_2], []),
-    get_routing_stats: IDL.Func([IDL.Opt(IDL.Text)], [Result_7], ['query']),
-
-    // OHMS 2.0 Agent Spawning APIs
-    create_agents_from_instructions: IDL.Func([IDL.Text, IDL.Opt(IDL.Nat32), IDL.Vec(IDL.Text), IDL.Text], [Result_AgentCreation], []),
-    get_agent_creation_status: IDL.Func([IDL.Text], [Result_AgentCreation], ['query']),
-    get_user_quota_status: IDL.Func([], [Result_QuotaCheck], []),
-    list_user_agents: IDL.Func([], [Result_5], ['query']),
-    list_instruction_requests: IDL.Func([], [IDL.Vec(InstructionRequest)], ['query']),
-    get_instruction_analysis: IDL.Func([IDL.Text], [Result_InstructionAnalysis], ['query']),
-    update_agent_status: IDL.Func([IDL.Text, IDL.Text], [Result_8], []),
-    get_agent_spawning_metrics: IDL.Func([], [IDL.Record({
-      total_creations: IDL.Nat32,
-      successful_creations: IDL.Nat32,
-      failed_creations: IDL.Nat32,
-      average_creation_time_ms: IDL.Float64,
-    })], ['query']),
-    get_coordination_networks: IDL.Func([], [IDL.Vec(IDL.Record({
-      network_id: IDL.Text,
-      agent_count: IDL.Nat32,
-      coordination_type: IDL.Text,
-      created_at: IDL.Nat64,
-    }))], ['query']),
-
-    // OHMS 2.0 Subscription Management
-    upgrade_subscription_tier: IDL.Func([IDL.Text], [Result_UserSubscription], []),
-    get_subscription_tier_info: IDL.Func([], [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Record({
-      name: IDL.Text,
-      monthly_fee_usd: IDL.Nat32,
-      max_agents: IDL.Nat32,
-      monthly_agent_creations: IDL.Nat32,
-      token_limit: IDL.Nat64,
-      inference_rate: IDL.Variant({ Standard: IDL.Null, Priority: IDL.Null, Premium: IDL.Null }),
-      features: IDL.Vec(IDL.Text),
-    })))], ['query']),
-
-    // OHMS 2.0 Economics Integration
-    get_economics_health: IDL.Func([], [Result_EconHealth], []),
-    validate_token_usage_quota: IDL.Func([IDL.Nat64], [Result_QuotaValidation], []),
-
-    // Swarm policy
-    set_swarm_policy: IDL.Func([SwarmPolicy], [Result_8], []),
-    get_swarm_policy: IDL.Func([], [SwarmPolicy], ['query']),
-  });
-};
-
-const econCanisterIdl = ({ IDL }: any) => {
-  // Core economics types
-  const JobPriority = IDL.Variant({ Low: IDL.Null, Normal: IDL.Null, High: IDL.Null, Critical: IDL.Null })
-  const JobSpec = IDL.Record({ job_id: IDL.Text, model_id: IDL.Text, estimated_tokens: IDL.Nat32, estimated_compute_cycles: IDL.Nat64, priority: JobPriority })
-  const CostQuote = IDL.Record({ job_id: IDL.Text, estimated_cost: IDL.Nat64, base_cost: IDL.Nat64, priority_multiplier: IDL.Float32, protocol_fee: IDL.Nat64, quote_expires_at: IDL.Nat64, quote_id: IDL.Text })
-  const EscrowStatus = IDL.Variant({ Pending: IDL.Null, Active: IDL.Null, Released: IDL.Null, Refunded: IDL.Null, Expired: IDL.Null })
-  const EscrowAccount = IDL.Record({ escrow_id: IDL.Text, job_id: IDL.Text, principal_id: IDL.Text, amount: IDL.Nat64, status: EscrowStatus, created_at: IDL.Nat64, expires_at: IDL.Nat64 })
-  const SettlementStatus = IDL.Variant({ Pending: IDL.Null, Completed: IDL.Null, Failed: IDL.Null, Disputed: IDL.Null })
-  const FeesBreakdown = IDL.Record({ base_amount: IDL.Nat64, protocol_fee: IDL.Nat64, agent_fee: IDL.Nat64, total_amount: IDL.Nat64 })
-  const Receipt = IDL.Record({ receipt_id: IDL.Text, job_id: IDL.Text, escrow_id: IDL.Text, agent_id: IDL.Text, actual_cost: IDL.Nat64, fees_breakdown: FeesBreakdown, settlement_status: SettlementStatus, created_at: IDL.Nat64, settled_at: IDL.Opt(IDL.Nat64) })
-  const Balance = IDL.Record({ principal_id: IDL.Text, available_balance: IDL.Nat64, escrowed_balance: IDL.Nat64, total_earnings: IDL.Nat64, last_updated: IDL.Nat64 })
-  const FeePolicy = IDL.Record({ protocol_fee_percentage: IDL.Float32, agent_fee_percentage: IDL.Float32, minimum_fee: IDL.Nat64, priority_multipliers: IDL.Vec(IDL.Tuple(IDL.Text, IDL.Float32)), last_updated: IDL.Nat64 })
-  const EconComponentHealth = IDL.Variant({
-    Healthy: IDL.Null,
-    Degraded: IDL.Null,
-    Unhealthy: IDL.Null,
-    Unknown: IDL.Null,
-  })
-
-  const EconHealth = IDL.Record({
-    canister_id: IDL.Principal,
-    status: EconComponentHealth,
-    uptime_seconds: IDL.Nat64,
-    memory_usage_mb: IDL.Float32,
-    last_update: IDL.Nat64,
-    version: IDL.Text,
-    metrics: IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
-  })
-  
-  // Subscription types
-  const InferenceRate = IDL.Variant({ Standard: IDL.Null, Priority: IDL.Null, Premium: IDL.Null })
-  const TierConfig = IDL.Record({ name: IDL.Text, monthly_fee_usd: IDL.Nat32, max_agents: IDL.Nat32, monthly_agent_creations: IDL.Nat32, token_limit: IDL.Nat64, inference_rate: InferenceRate, features: IDL.Vec(IDL.Text) })
-  const PaymentStatus = IDL.Variant({ Active: IDL.Null, Pending: IDL.Null, Failed: IDL.Null, Cancelled: IDL.Null })
-  const UsageMetrics = IDL.Record({ agents_created_this_month: IDL.Nat32, tokens_used_this_month: IDL.Nat64, inferences_this_month: IDL.Nat32, last_reset_date: IDL.Nat64 })
-  const UserSubscription = IDL.Record({ principal_id: IDL.Text, tier: TierConfig, started_at: IDL.Nat64, expires_at: IDL.Nat64, auto_renew: IDL.Bool, current_usage: UsageMetrics, payment_status: PaymentStatus, created_at: IDL.Nat64, updated_at: IDL.Nat64 })
-  const QuotaRemaining = IDL.Record({ agents_remaining: IDL.Nat32, tokens_remaining: IDL.Nat64, inferences_remaining: IDL.Nat32 })
-  const QuotaValidation = IDL.Record({ allowed: IDL.Bool, reason: IDL.Opt(IDL.Text), remaining_quota: IDL.Opt(QuotaRemaining) })
-  const SubscriptionStats = IDL.Record({ total_subscriptions: IDL.Nat32, active_subscriptions: IDL.Nat32, expired_subscriptions: IDL.Nat32, pending_payments: IDL.Nat32, tier_distribution: IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat32)), total_monthly_revenue_usd: IDL.Nat32 })
-  
-  // Payment types
-  const PaymentRequest = IDL.Record({ payment_id: IDL.Text, subscription_tier: IDL.Text, amount_usd: IDL.Nat32, amount_icp_e8s: IDL.Nat64, expires_at: IDL.Nat64, created_at: IDL.Nat64 })
-  const PaymentTransaction = IDL.Record({ transaction_id: IDL.Text, payment_request: PaymentRequest, from_principal: IDL.Text, amount_paid_e8s: IDL.Nat64, icp_usd_rate: IDL.Float64, status: IDL.Text, created_at: IDL.Nat64, completed_at: IDL.Opt(IDL.Nat64) })
-  const PaymentVerification = IDL.Record({ verified: IDL.Bool, transaction_id: IDL.Text, amount_verified: IDL.Nat64, verification_time: IDL.Nat64 })
-  const PaymentStats = IDL.Record({ total_transactions: IDL.Nat32, successful_transactions: IDL.Nat32, failed_transactions: IDL.Nat32, total_volume_icp_e8s: IDL.Nat64, total_volume_usd: IDL.Nat32 })
-  
-  // Result types
-  const ResultText = IDL.Variant({ Ok: IDL.Text, Err: IDL.Text })
-  const ResultQuote = IDL.Variant({ Ok: CostQuote, Err: IDL.Text })
-  const ResultBalance = IDL.Variant({ Ok: Balance, Err: IDL.Text })
-  const ResultEscrow = IDL.Variant({ Ok: EscrowAccount, Err: IDL.Text })
-  const ResultReceipt = IDL.Variant({ Ok: Receipt, Err: IDL.Text })
-  const ResultReceipts = IDL.Variant({ Ok: IDL.Vec(Receipt), Err: IDL.Text })
-  const ResultUnit = IDL.Variant({ Ok: IDL.Null, Err: IDL.Text })
-  const ResultUserSubscription = IDL.Variant({ Ok: UserSubscription, Err: IDL.Text })
-  const ResultQuotaValidation = IDL.Variant({ Ok: QuotaValidation, Err: IDL.Text })
-  const ResultPaymentRequest = IDL.Variant({ Ok: PaymentRequest, Err: IDL.Text })
-  const ResultPaymentTransaction = IDL.Variant({ Ok: PaymentTransaction, Err: IDL.Text })
-  const ResultPaymentVerification = IDL.Variant({ Ok: PaymentVerification, Err: IDL.Text })
-  const ResultFloat64 = IDL.Variant({ Ok: IDL.Float64, Err: IDL.Text })
-  const ResultNat64 = IDL.Variant({ Ok: IDL.Nat64, Err: IDL.Text })
-  return IDL.Service({
-    // Core economics APIs
-    health: IDL.Func([], [EconHealth], ['query']),
-    estimate: IDL.Func([JobSpec], [ResultQuote], ['query']),
-    escrow: IDL.Func([IDL.Text, IDL.Nat64], [ResultText], []),
-    get_balance: IDL.Func([IDL.Opt(IDL.Text)], [ResultBalance], ['query']),
-    get_escrow: IDL.Func([IDL.Text], [ResultEscrow], ['query']),
-    get_receipt: IDL.Func([IDL.Text], [ResultReceipt], ['query']),
-    list_receipts: IDL.Func([IDL.Opt(IDL.Text), IDL.Opt(IDL.Nat32)], [ResultReceipts], ['query']),
-    policy: IDL.Func([], [FeePolicy], ['query']),
-    refund_escrow: IDL.Func([IDL.Text], [ResultUnit], []),
-    update_policy: IDL.Func([FeePolicy], [ResultUnit], []),
-    deposit: IDL.Func([IDL.Nat64], [ResultUnit], []),
-    withdraw: IDL.Func([IDL.Nat64], [ResultUnit], []),
-    settle: IDL.Func([Receipt], [ResultText], []),
-    
-    // Admin role APIs
-    is_admin: IDL.Func([], [IDL.Bool], ['query']),
-    list_admins: IDL.Func([], [IDL.Vec(IDL.Text)], ['query']),
-    add_admin: IDL.Func([IDL.Text], [ResultUnit], []),
-    remove_admin: IDL.Func([IDL.Text], [ResultUnit], []),
-    
-    // Subscription APIs
-    create_subscription: IDL.Func([IDL.Text, IDL.Bool], [ResultUserSubscription], []),
-    get_user_subscription: IDL.Func([IDL.Opt(IDL.Text)], [IDL.Opt(UserSubscription)], ['query']),
-    get_or_create_free_subscription: IDL.Func([], [ResultUserSubscription], []),
-    update_payment_status: IDL.Func([PaymentStatus], [ResultUnit], []),
-    validate_agent_creation_quota: IDL.Func([], [ResultQuotaValidation], []),
-    validate_token_usage_quota: IDL.Func([IDL.Nat64], [ResultQuotaValidation], []),
-    get_user_usage: IDL.Func([IDL.Opt(IDL.Text)], [IDL.Opt(UsageMetrics)], ['query']),
-    cancel_subscription: IDL.Func([], [ResultUnit], []),
-    renew_subscription: IDL.Func([], [ResultUnit], []),
-    
-    // Admin subscription APIs
-    get_subscription_tiers: IDL.Func([], [IDL.Vec(IDL.Tuple(IDL.Text, TierConfig))], ['query']),
-    list_all_subscriptions: IDL.Func([], [IDL.Vec(UserSubscription)], ['query']),
-    get_subscription_stats: IDL.Func([], [SubscriptionStats], ['query']),
-    
-    // Payment APIs
-    create_payment_request: IDL.Func([IDL.Text], [ResultPaymentRequest], []),
-    process_subscription_payment: IDL.Func([PaymentRequest], [ResultPaymentTransaction], []),
-    verify_payment: IDL.Func([IDL.Text], [ResultPaymentVerification], []),
-    get_payment_transaction: IDL.Func([IDL.Text], [IDL.Opt(PaymentTransaction)], ['query']),
-    list_user_payment_transactions: IDL.Func([IDL.Opt(IDL.Nat32)], [IDL.Vec(PaymentTransaction)], ['query']),
-    get_icp_usd_rate: IDL.Func([], [ResultFloat64], ['query']),
-    convert_usd_to_icp_e8s: IDL.Func([IDL.Nat32], [ResultNat64], []),
-    
-    // Admin payment APIs
-    get_payment_stats: IDL.Func([], [PaymentStats], ['query']),
-    list_all_payment_transactions: IDL.Func([IDL.Opt(IDL.Nat32)], [IDL.Vec(PaymentTransaction)], ['query']),
+  agent.fetchRootKey().catch(() => {
+    /* Swallow errors for local development */
   })
 }
 
-// Export IDL for creating custom actors
-export { modelCanisterIdl, agentCanisterIdl, coordinatorCanisterIdl, econCanisterIdl };
+const CANISTER_IDS = getCanisterIdsFromEnv()
 
-// Create actor instances
-export const modelCanister = Actor.createActor(modelCanisterIdl, {
-  agent,
-  canisterId: OHMS_MODEL_CANISTER_ID,
-});
+type Optional<T> = T | undefined
 
-export const agentCanister: ActorSubclass<AgentCanister> = Actor.createActor(agentIdlFactory, {
-  agent,
-  canisterId: OHMS_AGENT_CANISTER_ID,
-});
+type ActorOptions = {
+  agent?: HttpAgent
+  canisterId?: string
+}
 
-export const coordinatorCanister = Actor.createActor(coordinatorCanisterIdl, {
-  agent,
-  canisterId: OHMS_COORDINATOR_CANISTER_ID,
-});
+const optionToValue = <T>(input: [] | [T]): Optional<T> => (input.length === 0 ? undefined : input[0])
 
-export const econCanister = Actor.createActor(econCanisterIdl, {
-  agent,
-  canisterId: OHMS_ECON_CANISTER_ID,
-});
-
-// Utility functions
-export const getCanisterIds = () => ({
-  model: OHMS_MODEL_CANISTER_ID,
-  agent: OHMS_AGENT_CANISTER_ID,
-  coordinator: OHMS_COORDINATOR_CANISTER_ID,
-  econ: OHMS_ECON_CANISTER_ID,
-});
-
-// Health check for all canisters
-export const healthCheck = async () => {
-  try {
-    const [modelHealth, agentHealth, coordinatorHealth, econHealth] = await Promise.allSettled([
-      (modelCanister as any).health_check?.() ?? Promise.resolve(null),
-      agentCanister.health(),
-      coordinatorCanister.health(),
-      econCanister.health(),
-    ]);
-
-    return {
-      model: modelHealth.status === 'fulfilled' ? modelHealth.value : null,
-      agent: agentHealth.status === 'fulfilled' ? agentHealth.value : null,
-      coordinator: coordinatorHealth.status === 'fulfilled' ? coordinatorHealth.value : null,
-      econ: econHealth.status === 'fulfilled' ? econHealth.value : null,
-    };
-  } catch (error) {
-    // Removed console log
-    throw error;
+const tupleVecToRecord = (entries: Array<[string, string]>): Record<string, string> => {
+  const result: Record<string, string> = {}
+  for (const [key, value] of entries) {
+    result[key] = value
   }
-};
+  return result
+}
 
-// Swarm helpers
-export const setSwarmPolicy = async (policy: { topology: any; mode: any; top_k: number; window_ms: bigint; }) => {
-  return coordinatorCanister.set_swarm_policy(policy);
-};
-
-export const getSwarmPolicy = async () => {
-  return coordinatorCanister.get_swarm_policy();
-};
-
-export const routeBestResult = async (req: {
-  request_id: string;
-  requester: string;
-  capabilities_required: string[];
-  payload: Uint8Array;
-  routing_mode: any;
-}, topK: number, windowMs: bigint) => {
-  return coordinatorCanister.route_best_result(req, topK, windowMs);
-};
-
-// Agent Interaction Functions
-export const sendMessageToAgent = async (
-  agentId: string, 
-  message: string, 
-  capabilities?: string[]
-): Promise<any> => {
-  try {
-    const agentActor = createAgentActor();
-
-    const decodeParams = {
-      max_tokens: [512],
-      temperature: [0.7],
-      top_p: [0.9],
-      top_k: [],
-      repetition_penalty: [1.05],
-    } as CandidInferenceRequest['decode_params'];
-
-    const inferenceRequest: CandidInferenceRequest = {
-      seed: BigInt(Date.now()),
-      prompt: message,
-      decode_params: decodeParams,
-      msg_id: `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-    };
-
-    const result: CandidResultInference = await agentActor.infer(inferenceRequest);
-
-    if ('Err' in result) {
-      throw new Error(`Agent inference failed: ${result.Err}`);
+const buildActorFactory = <T>(idlFactory: Parameters<typeof Actor.createActor>[0], defaultCanisterId: string) => {
+  const defaultActor = Actor.createActor<T>(idlFactory, { agent, canisterId: defaultCanisterId })
+  return (options?: ActorOptions): ActorSubclass<T> => {
+    if (!options || (!options.agent && !options.canisterId)) {
+      return defaultActor
     }
-
-    const responsePayload = result.Ok;
-    return {
-      success: true,
-      agentId,
-      response: responsePayload.generated_text,
-      metadata: responsePayload,
-    };
-  } catch (error) {
-    throw error;
+    return Actor.createActor<T>(idlFactory, {
+      agent: options.agent ?? agent,
+      canisterId: options.canisterId ?? defaultCanisterId,
+    })
   }
-};
+}
 
-// Bind agent and wire inference routes
-export const bindAgentAndWireRoutes = async (
-  agentId: string,
-  modelId: string
-): Promise<any> => {
-  try {
-    const agentActor = createAgentActor();
+const agentActorFactory = buildActorFactory<AgentService>(agentIdlFactory, CANISTER_IDS.ohms_agent)
+const modelActorFactory = buildActorFactory<ModelService>(modelIdlFactory, CANISTER_IDS.ohms_model)
+const coordinatorActorFactory = buildActorFactory<CoordinatorService>(coordinatorIdlFactory, CANISTER_IDS.ohms_coordinator)
+const econActorFactory = buildActorFactory<EconService>(econIdlFactory, CANISTER_IDS.ohms_econ)
 
-    const bindResult = await agentActor.bind_model(modelId);
+export const agentCanister = agentActorFactory()
+export const modelCanister = modelActorFactory()
+export const coordinatorCanister = coordinatorActorFactory()
+export const econCanister = econActorFactory()
 
-    if ('Err' in bindResult) {
-      throw new Error(`Failed to bind model: ${bindResult.Err}`);
-    }
-
-    return {
-      success: true,
-      agentId,
-      modelId,
-      status: 'ready',
-      message: 'Agent bound successfully',
-      canisterId: OHMS_AGENT_CANISTER_ID,
-    };
-  } catch (error) {
-    throw error;
-  }
-};
-
-// Execute coordinator workflow
-export const executeCoordinatorWorkflow = async (
-  workflow: any
-): Promise<any> => {
-  // Removed console log
-  
-  try {
-    const results = [];
-    
-    // Process each node in the workflow
-    for (const node of workflow.nodes) {
-      if (node.type === 'agent' && node.data.config?.instructions) {
-        // Removed console log
-        
-        // Create agent if not already created
-        let agentId = node.data.config.agentId;
-        if (!agentId) {
-          const agentResult = await createAgentsFromInstructions(
-            node.data.config.instructions,
-            1,
-            node.data.config.capabilities || [],
-            node.data.config.priority || 'normal'
-          );
-          
-          if ('Ok' in agentResult) {
-            agentId = agentResult.Ok.agent_id;
-          } else {
-            throw new Error(`Failed to create agent: ${agentResult.Err}`);
-          }
-        }
-        
-        // Bind agent and wire routes
-        await bindAgentAndWireRoutes(agentId, 'default');
-        
-        // Test agent communication
-        const testMessage = `Execute task: ${node.data.config.instructions}`;
-        const response = await sendMessageToAgent(
-          agentId, 
-          testMessage, 
-          node.data.config.capabilities
-        );
-        
-        results.push({
-          nodeId: node.id,
-          agentId,
-          response: response.response,
-          status: 'completed'
-        });
-        
-        // Removed console log
-      }
-    }
-    
-    return {
-      success: true,
-      workflowId: workflow.id,
-      results,
-      message: 'Workflow executed successfully'
-    };
-    
-  } catch (error) {
-    // Removed console log
-    throw error;
-  }
-};
-
-// Helpers
-export const createAgentActor = (
+const parseActorArguments = (
+  defaultCanisterId: string,
   param1?: HttpAgent | string,
-  param2?: HttpAgent | string
-): ActorSubclass<AgentCanister> => {
-  let resolvedAgent: HttpAgent = agent;
-  let resolvedCanister = OHMS_AGENT_CANISTER_ID;
+  param2?: HttpAgent | string,
+): ActorOptions => {
+  let resolvedAgent: Optional<HttpAgent>
+  let resolvedCanister: Optional<string>
 
   if (param1) {
     if (typeof param1 === 'string') {
-      resolvedCanister = param1;
+      resolvedCanister = param1
     } else {
-      resolvedAgent = param1;
+      resolvedAgent = param1
     }
   }
 
   if (param2) {
     if (typeof param2 === 'string') {
-      resolvedCanister = param2;
+      resolvedCanister = param2
     } else {
-      resolvedAgent = param2;
+      resolvedAgent = param2
     }
   }
 
-  return Actor.createActor(agentIdlFactory, {
+  return {
     agent: resolvedAgent,
-    canisterId: resolvedCanister,
-  });
-};
-
-export const createCoordinatorActor = (agentOverride?: HttpAgent, canisterId?: string) =>
-  Actor.createActor(coordinatorCanisterIdl, {
-    agent: agentOverride || agent,
-    canisterId: canisterId || OHMS_COORDINATOR_CANISTER_ID,
-  });
-
-export const createModelActor = (agentOverride?: HttpAgent, canisterId?: string) =>
-  Actor.createActor(modelCanisterIdl, {
-    agent: agentOverride || agent,
-    canisterId: canisterId || OHMS_MODEL_CANISTER_ID,
-  });
-
-export const listAgents = async (userId: string = 'anonymous', agentOverride?: HttpAgent): Promise<CandidAgentSummary[]> => {
-  const actor = agentOverride ? createAgentActor(agentOverride) : agentCanister;
-  const res: CandidResultSummaries = await actor.list_user_agents(userId);
-  if ('Err' in res) {
-    throw new Error(res.Err || 'Failed to list agents');
+    canisterId: resolvedCanister ?? defaultCanisterId,
   }
-  return res.Ok;
-};
+}
 
-// OHMS 2.0 Agent Spawning Functions
+export const createAgentActor = (
+  param1?: HttpAgent | string,
+  param2?: HttpAgent | string,
+): ActorSubclass<AgentService> => {
+  const options = parseActorArguments(CANISTER_IDS.ohms_agent, param1, param2)
+  return agentActorFactory(options)
+}
+
+export const createModelActor = (
+  param1?: HttpAgent | string,
+  param2?: HttpAgent | string,
+): ActorSubclass<ModelService> => {
+  const options = parseActorArguments(CANISTER_IDS.ohms_model, param1, param2)
+  return modelActorFactory(options)
+}
+
+export const createCoordinatorActor = (
+  param1?: HttpAgent | string,
+  param2?: HttpAgent | string,
+): ActorSubclass<CoordinatorService> => {
+  const options = parseActorArguments(CANISTER_IDS.ohms_coordinator, param1, param2)
+  return coordinatorActorFactory(options)
+}
+
+export const createEconActor = (
+  param1?: HttpAgent | string,
+  param2?: HttpAgent | string,
+): ActorSubclass<EconService> => {
+  const options = parseActorArguments(CANISTER_IDS.ohms_econ, param1, param2)
+  return econActorFactory(options)
+}
+
+const componentHealthToString = (health: CandidModelHealth['status']): SharedSystemHealth['status'] => {
+  if ('Healthy' in health) return 'Healthy'
+  if ('Degraded' in health) return 'Degraded'
+  if ('Unhealthy' in health) return 'Unhealthy'
+  return 'Unknown'
+}
+
+const coordinatorHealthToString = (health: CandidCoordinatorHealth['status']): SharedSystemHealth['status'] => {
+  if ('Healthy' in health) return 'Healthy'
+  if ('Degraded' in health) return 'Degraded'
+  if ('Unhealthy' in health) return 'Unhealthy'
+  return 'Unknown'
+}
+
+const quantizationFormatToShared = (format: CandidQuantizationFormat): SharedQuantizationFormat => {
+  if ('NOVAQ' in format) return 'NOVAQ'
+  if ('GGUF' in format) return 'GGUF'
+  return { Custom: format.Custom }
+}
+
+const modelStateToShared = (state: CandidModelState): SharedModelInfo['state'] => {
+  if ('Active' in state) return 'Active'
+  if ('Deprecated' in state) return 'Deprecated'
+  return 'Pending'
+}
+
+const agentTypeToShared = (agentType: CandidAgentType): SharedAgentType => {
+  if ('Custom' in agentType) {
+    return { Custom: agentType.Custom }
+  }
+  const [key] = Object.keys(agentType) as Array<keyof typeof agentType>
+  return key as SharedAgentType
+}
+
+const agentStatusToShared = (status: AgentStatus): SharedAgentStatus => {
+  if ('Error' in status) {
+    return { Error: status.Error }
+  }
+  const [key] = Object.keys(status) as Array<keyof typeof status>
+  return key as SharedAgentStatus
+}
+
+const quantizedMetadataToShared = (metadata: CandidQuantizedMetadata): SharedModelManifest['quantization'] => ({
+  format: quantizationFormatToShared(metadata.format),
+  artifact_checksum: metadata.artifact_checksum,
+  compression_ratio: metadata.compression_ratio,
+  accuracy_retention: metadata.accuracy_retention,
+  bits_per_weight: optionToValue(metadata.bits_per_weight),
+  notes: optionToValue(metadata.notes),
+})
+
+const principalToText = (principal: Principal): string => principal.toText()
+
+const modelManifestToShared = (manifest: CandidModelManifest): SharedModelManifest => ({
+  model_id: manifest.model_id,
+  version: manifest.version,
+  state: modelStateToShared(manifest.state),
+  uploaded_at: manifest.uploaded_at,
+  activated_at: optionToValue(manifest.activated_at),
+  total_size_bytes: manifest.total_size_bytes,
+  chunk_count: manifest.chunk_count,
+  checksum: manifest.checksum,
+  quantization: quantizedMetadataToShared(manifest.quantization),
+  metadata: tupleVecToRecord(manifest.metadata),
+  chunks: manifest.chunks.map(chunk => ({
+    chunk_id: chunk.chunk_id,
+    offset: chunk.offset,
+    size_bytes: chunk.size_bytes,
+    sha256: chunk.sha256,
+  })),
+})
+
+const modelInfoToShared = (info: CandidModelInfo): SharedModelInfo => ({
+  model_id: info.model_id,
+  version: info.version,
+  state: modelStateToShared(info.state),
+  quantization_format: quantizationFormatToShared(info.quantization_format),
+  compression_ratio: optionToValue(info.compression_ratio),
+  accuracy_retention: optionToValue(info.accuracy_retention),
+  size_bytes: info.size_bytes,
+  uploaded_at: info.uploaded_at,
+  activated_at: optionToValue(info.activated_at),
+})
+
+const modelHealthToShared = (health: CandidModelHealth): SharedSystemHealth => ({
+  canister_id: principalToText(health.canister_id),
+  status: componentHealthToString(health.status),
+  uptime_seconds: health.uptime_seconds,
+  memory_usage_mb: health.memory_usage_mb,
+  last_update: health.last_update,
+  version: health.version,
+  metrics: tupleVecToRecord(health.metrics),
+})
+
+const coordinatorHealthToShared = (health: CandidCoordinatorHealth): SharedSystemHealth => ({
+  canister_id: principalToText(health.canister_id),
+  status: coordinatorHealthToString(health.status),
+  uptime_seconds: health.uptime_seconds,
+  memory_usage_mb: health.memory_usage_mb,
+  last_update: health.last_update,
+  version: health.version,
+  metrics: tupleVecToRecord(health.metrics),
+})
+
+export interface ModelSummary {
+  info: SharedModelInfo
+  manifest?: SharedModelManifest
+}
+
+export interface AgentSummaryView {
+  agentId: string
+  agentType: SharedAgentType
+  status: SharedAgentStatus
+  createdAt: bigint
+  lastActive: bigint
+}
+
+export interface AgentLoaderStats {
+  modelBound: boolean
+  chunksLoaded: number
+  totalChunks: number
+  cacheUtilization: number
+  cacheEntries: number
+}
+
+export interface SystemHealthSnapshot {
+  model: Optional<SharedSystemHealth>
+  coordinator: Optional<SharedSystemHealth>
+  agent: Optional<AgentHealth>
+  econ: Optional<EconHealth>
+}
+
+export interface AuditEvent {
+  model_id: string
+  event_type: Record<string, unknown>
+  timestamp: bigint
+  details?: string
+}
+
+export interface ModelStats {
+  total: number
+  active: number
+  pending: number
+  deprecated: number
+}
+
+const parseLoaderStats = (raw: string): AgentLoaderStats | undefined => {
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    return {
+      modelBound: Boolean(parsed.model_bound),
+      chunksLoaded: Number(parsed.chunks_loaded ?? 0),
+      totalChunks: Number(parsed.total_chunks ?? 0),
+      cacheUtilization: Number(parsed.cache_utilization ?? 0),
+      cacheEntries: Number(parsed.cache_entries ?? 0),
+    }
+  } catch {
+    return undefined
+  }
+}
+
+export const listModels = async (agentOverride?: HttpAgent): Promise<ModelSummary[]> => {
+  const actor = agentOverride ? createModelActor(agentOverride) : modelCanister
+  const infos = await actor.list_models([])
+  const manifests = await Promise.all(
+    infos.map(async info => {
+      const manifestOpt = await actor.get_manifest(info.model_id)
+      const manifest = optionToValue(manifestOpt)
+      return manifest ? modelManifestToShared(manifest) : undefined
+    }),
+  )
+
+  return infos.map((info, index) => ({
+    info: modelInfoToShared(info),
+    manifest: manifests[index],
+  }))
+}
+
+export const getModelManifest = async (
+  modelId: string,
+  agentOverride?: HttpAgent,
+): Promise<Optional<SharedModelManifest>> => {
+  const actor = agentOverride ? createModelActor(agentOverride) : modelCanister
+  const manifestOpt = await actor.get_manifest(modelId)
+  const manifest = optionToValue(manifestOpt)
+  return manifest ? modelManifestToShared(manifest) : undefined
+}
+
+const readModelAuditLog = async (actor: ActorSubclass<ModelService>): Promise<AuditEvent[]> => {
+  const candidate = actor as unknown as { get_audit_log?: () => Promise<AuditEvent[]> }
+  if (typeof candidate.get_audit_log === 'function') {
+    return candidate.get_audit_log()
+  }
+  return []
+}
+
+export const getModelAuditLog = async (agentOverride?: HttpAgent): Promise<AuditEvent[]> => {
+  const actor = agentOverride ? createModelActor(agentOverride) : modelCanister
+  return readModelAuditLog(actor)
+}
+
+export const getModelHealth = async (agentOverride?: HttpAgent): Promise<SharedSystemHealth> => {
+  const actor = agentOverride ? createModelActor(agentOverride) : modelCanister
+  const health = await actor.health_check()
+  return modelHealthToShared(health)
+}
+
+export const getAgentHealth = async (agentOverride?: HttpAgent): Promise<AgentHealth> => {
+  const actor = agentOverride ? createAgentActor(agentOverride) : agentCanister
+  return actor.health()
+}
+
+export const getAgentLoaderStats = async (
+  agentOverride?: HttpAgent,
+): Promise<Optional<AgentLoaderStats>> => {
+  const actor = agentOverride ? createAgentActor(agentOverride) : agentCanister
+  const result = await actor.get_loader_stats()
+  if ('Err' in result) {
+    return undefined
+  }
+  return parseLoaderStats(result.Ok)
+}
+
+export const getCoordinatorHealth = async (
+  agentOverride?: HttpAgent,
+): Promise<SharedSystemHealth> => {
+  const actor = agentOverride ? createCoordinatorActor(agentOverride) : coordinatorCanister
+  const health = await actor.health()
+  return coordinatorHealthToShared(health)
+}
+
+export const getEconomicsHealth = async (
+  agentOverride?: HttpAgent,
+): Promise<EconHealth> => {
+  const actor = agentOverride ? createEconActor(agentOverride) : econCanister
+  return actor.health()
+}
+
+export const getSystemHealthSnapshot = async (
+  agentOverride?: HttpAgent,
+): Promise<SystemHealthSnapshot> => {
+  const [model, coordinator, agentHealth, econ] = await Promise.all([
+    getModelHealth(agentOverride).catch(() => undefined),
+    getCoordinatorHealth(agentOverride).catch(() => undefined),
+    getAgentHealth(agentOverride).catch(() => undefined),
+    getEconomicsHealth(agentOverride).catch(() => undefined),
+  ])
+
+  return {
+    model,
+    coordinator,
+    agent: agentHealth,
+    econ,
+  }
+}
+
+export const calculateModelStats = (summaries: ModelSummary[]): ModelStats => {
+  return summaries.reduce<ModelStats>(
+    (acc, summary) => {
+      acc.total += 1
+      switch (summary.info.state) {
+        case 'Active':
+          acc.active += 1
+          break
+        case 'Deprecated':
+          acc.deprecated += 1
+          break
+        case 'Pending':
+        default:
+          acc.pending += 1
+          break
+      }
+      return acc
+    },
+    { total: 0, active: 0, pending: 0, deprecated: 0 },
+  )
+}
+
+const unwrapAgentCreation = (result: Result_AgentCreation): CandidAgentCreationResult => {
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+  return result.Ok
+}
+
+const unwrapInference = (result: Result_Inference): CandidInferenceResponse => {
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+  return result.Ok
+}
+
+const unwrapAgentSummaries = (result: Result_Summaries): CandidAgentSummary[] => {
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+  return result.Ok
+}
+
+const unwrapEmpty = (result: Result_Empty): void => {
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+}
+
+export const listAgents = async (
+  userPrincipal: Optional<string>,
+  agentOverride?: HttpAgent,
+): Promise<AgentSummaryView[]> => {
+  const actor = agentOverride ? createAgentActor(agentOverride) : agentCanister
+  const summaries = unwrapAgentSummaries(await actor.list_user_agents(userPrincipal ?? ''))
+  return summaries.map(summary => ({
+    agentId: summary.agent_id,
+    agentType: agentTypeToShared(summary.agent_type),
+    status: agentStatusToShared(summary.status),
+    createdAt: summary.created_at,
+    lastActive: summary.last_active,
+  }))
+}
+
+export const listUserAgents = async (
+  userPrincipal: Optional<string>,
+  agentOverride?: HttpAgent,
+): Promise<AgentSummaryView[]> => listAgents(userPrincipal, agentOverride)
+
+type AgentInstructionInput = CandidAgentCreationRequest | {
+  instruction: string
+  agentCount?: number
+  capabilities?: string[]
+  priority?: string
+}
+
+const normalizeAgentCreationRequest = (input: AgentInstructionInput): CandidAgentCreationRequest => {
+  if ('agentCount' in input || 'capabilities' in input || 'priority' in input) {
+    return {
+      instruction: input.instruction,
+      agent_count: input.agentCount !== undefined ? [input.agentCount] : [],
+      capabilities: input.capabilities && input.capabilities.length ? [input.capabilities] : [],
+      priority: input.priority ? [input.priority] : [],
+    }
+  }
+  return input
+}
+
 export const createAgentsFromInstructions = async (
-  instructions: string, 
-  agentCount?: number, 
-  capabilities: string[] = [], 
-  priority: string = 'normal'
-): Promise<any> => {
-  const actor = createAgentActor();
-  const request: CandidAgentCreationRequest = {
-    instruction: instructions,
-    agent_count: agentCount ? [agentCount] : [],
-    capabilities: capabilities.length ? [capabilities] : [],
-    priority: priority ? [priority] : [],
-  };
+  instructionOrRequest: AgentInstructionInput | string,
+  maybeAgentCountOrAgent?: number | HttpAgent,
+  maybeCapabilities?: string[],
+  maybePriority?: string,
+  agentOverride?: HttpAgent,
+): Promise<Result_AgentCreation> => {
+  let request: CandidAgentCreationRequest
+  let override: Optional<HttpAgent>
 
-  const result: CandidResultAgentCreation = await actor.create_agent_from_instruction(request);
-  return result;
-};
+  if (typeof instructionOrRequest === 'string') {
+    request = normalizeAgentCreationRequest({
+      instruction: instructionOrRequest,
+      agentCount: typeof maybeAgentCountOrAgent === 'number' ? maybeAgentCountOrAgent : undefined,
+      capabilities: maybeCapabilities,
+      priority: maybePriority,
+    })
+    override = (typeof maybeAgentCountOrAgent !== 'number' ? maybeAgentCountOrAgent : agentOverride) as Optional<HttpAgent>
+  } else {
+    request = normalizeAgentCreationRequest(instructionOrRequest)
+    override = (maybeAgentCountOrAgent as HttpAgent | undefined) ?? agentOverride
+  }
 
-export const getAgentCreationStatus = async (requestId: string): Promise<any> => {
-  return coordinatorCanister.get_agent_creation_status(requestId);
-};
+  const actor = override ? createAgentActor(override) : agentCanister
+  return actor.create_agent_from_instruction(request)
+}
 
-export const getUserQuotaStatus = async (): Promise<any> => {
-  return coordinatorCanister.get_user_quota_status();
-};
+export const createAgentsFromInstructionsTyped = async (
+  instructionOrRequest: AgentInstructionInput | string,
+  maybeAgentCountOrAgent?: number | HttpAgent,
+  maybeCapabilities?: string[],
+  maybePriority?: string,
+  agentOverride?: HttpAgent,
+): Promise<CandidAgentCreationResult> => {
+  const result = await createAgentsFromInstructions(
+    instructionOrRequest,
+    maybeAgentCountOrAgent,
+    maybeCapabilities,
+    maybePriority,
+    agentOverride,
+  )
+  return unwrapAgentCreation(result)
+}
 
-export const listUserAgents = async (userId: string, agentOverride?: HttpAgent): Promise<CandidAgentSummary[]> => {
-  return listAgents(userId, agentOverride);
-};
+export const runInference = async (
+  request: CandidInferenceRequest,
+  agentOverride?: HttpAgent,
+): Promise<CandidInferenceResponse> => {
+  const actor = agentOverride ? createAgentActor(agentOverride) : agentCanister
+  const result = await actor.infer(request)
+  return unwrapInference(result)
+}
 
-export const listInstructionRequests = async (): Promise<any[]> => {
-  const result = await coordinatorCanister.list_instruction_requests();
-  return result as any[];
-};
+export const getSwarmPolicy = async (agentOverride?: HttpAgent): Promise<SwarmPolicy> => {
+  const actor = agentOverride ? createCoordinatorActor(agentOverride) : coordinatorCanister
+  return actor.get_swarm_policy()
+}
 
-export const getInstructionAnalysis = async (requestId: string): Promise<any> => {
-  return coordinatorCanister.get_instruction_analysis(requestId);
-};
+export const setSwarmPolicy = async (
+  policy: SwarmPolicy,
+  agentOverride?: HttpAgent,
+): Promise<void> => {
+  const actor = agentOverride ? createCoordinatorActor(agentOverride) : coordinatorCanister
+  const result = await actor.set_swarm_policy(policy)
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+}
 
-export const updateAgentStatus = async (agentId: string, status: string): Promise<any> => {
-  return coordinatorCanister.update_agent_status(agentId, status);
-};
+export const routeBestResult = async (
+  request: RouteRequest,
+  limit: number,
+  timeoutNs: bigint,
+  agentOverride?: HttpAgent,
+): Promise<RouteResponse> => {
+  const actor = agentOverride ? createCoordinatorActor(agentOverride) : coordinatorCanister
+  const result = await actor.route_best_result(request, limit, timeoutNs)
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+  return result.Ok
+}
 
-export const getAgentSpawningMetrics = async (): Promise<any> => {
-  return coordinatorCanister.get_agent_spawning_metrics();
-};
+export const getRoutingStats = async (
+  agentOverride?: HttpAgent,
+): Promise<RoutingStats[]> => {
+  const actor = agentOverride ? createCoordinatorActor(agentOverride) : coordinatorCanister
+  const result = await actor.get_routing_stats([])
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+  return result.Ok
+}
 
-export const getCoordinationNetworks = async (): Promise<any[]> => {
-  const result = await coordinatorCanister.get_coordination_networks();
-  return result as any[];
-};
+export const getUserQuotaStatus = async (
+  agentOverride?: HttpAgent,
+): Promise<CandidQuotaValidation | undefined> => {
+  const actor = agentOverride ? createCoordinatorActor(agentOverride) : coordinatorCanister
+  const result = await actor.get_user_quota_status()
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+  return result.Ok
+}
 
-// OHMS 2.0 Subscription Management Functions
-export const upgradeSubscriptionTier = async (tierName: string): Promise<any> => {
-  return coordinatorCanister.upgrade_subscription_tier(tierName);
-};
+export const validateTokenUsageQuota = async (
+  tokens: bigint,
+  agentOverride?: HttpAgent,
+): Promise<CandidQuotaValidation> => {
+  const actor = agentOverride ? createCoordinatorActor(agentOverride) : coordinatorCanister
+  const result = await actor.validate_token_usage_quota(tokens)
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+  return result.Ok
+}
 
-export const getSubscriptionTierInfo = async (): Promise<any[]> => {
-  const result = await coordinatorCanister.get_subscription_tier_info();
-  return result as any[];
-};
+export const registerAgent = async (
+  registration: AgentRegistration,
+  agentOverride?: HttpAgent,
+): Promise<void> => {
+  const actor = agentOverride ? createCoordinatorActor(agentOverride) : coordinatorCanister
+  const result = await actor.register_agent(registration)
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+}
 
-// OHMS 2.0 Economics Integration Functions
-export const getEconomicsHealth = async (): Promise<any> => {
-  return coordinatorCanister.get_economics_health();
-};
+export const getEconomicsPolicy = async (
+  agentOverride?: HttpAgent,
+): Promise<FeePolicy> => {
+  const actor = agentOverride ? createEconActor(agentOverride) : econCanister
+  return actor.policy()
+}
 
-export const validateTokenUsageQuota = async (tokens: bigint): Promise<any> => {
-  return coordinatorCanister.validate_token_usage_quota(tokens);
-};
+export const listEconomicsAdmins = async (
+  agentOverride?: HttpAgent,
+): Promise<string[]> => {
+  const actor = agentOverride ? createEconActor(agentOverride) : econCanister
+  return actor.list_admins()
+}
 
-export const listModels = async (state?: any, agentOverride?: HttpAgent): Promise<any[]> => {
-  const modelActor = agentOverride ? createModelActor(agentOverride) : modelCanister;
-  const res = await modelActor.list_models(state ? [state] : []);
-  return res as any[];
-};
+export const getUserSubscription = async (
+  userPrincipal: Optional<string>,
+  agentOverride?: HttpAgent,
+): Promise<Optional<UserSubscription>> => {
+  const actor = agentOverride ? createEconActor(agentOverride) : econCanister
+  const result = await actor.get_user_subscription(userPrincipal ? [userPrincipal] : [])
+  return optionToValue(result)
+}
 
-// Dynamic actor creators (useful to attach a specific agent/identity)
-export const createEconActor = (agentOverride?: HttpAgent, canisterId?: string) =>
-  Actor.createActor(econCanisterIdl, {
-    agent: agentOverride ?? agent,
-    canisterId: canisterId || OHMS_ECON_CANISTER_ID,
-  });
+export const createSubscription = async (
+  tier: string,
+  autoRenew: boolean,
+  agentOverride?: HttpAgent,
+): Promise<UserSubscription> => {
+  const actor = agentOverride ? createEconActor(agentOverride) : econCanister
+  const result = await actor.create_subscription(tier, autoRenew)
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+  return result.Ok
+}
+
+export const getPaymentRequest = async (
+  tier: string,
+  agentOverride?: HttpAgent,
+): Promise<PaymentRequest> => {
+  const actor = agentOverride ? createEconActor(agentOverride) : econCanister
+  const result = await actor.create_payment_request(tier)
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+  return result.Ok
+}
+
+export const getPaymentStats = async (
+  agentOverride?: HttpAgent,
+): Promise<PaymentStats> => {
+  const actor = agentOverride ? createEconActor(agentOverride) : econCanister
+  return actor.get_payment_stats()
+}
+
+export interface RoutingOverview {
+  policy: SwarmPolicy
+  stats: RoutingStats[]
+}
+
+export const getRoutingOverview = async (
+  agentOverride?: HttpAgent,
+): Promise<RoutingOverview> => {
+  const [policy, stats] = await Promise.all([
+    getSwarmPolicy(agentOverride),
+    getRoutingStats(agentOverride),
+  ])
+  return { policy, stats }
+}
+
+export const listInstructionRequests = async (
+  agentOverride?: HttpAgent,
+) => {
+  const actor = agentOverride ? createCoordinatorActor(agentOverride) : coordinatorCanister
+  const result = await actor.list_instruction_requests()
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+  return result.Ok
+}
+
+export const getInstructionAnalysis = async (
+  requestId: string,
+  agentOverride?: HttpAgent,
+) => {
+  const actor = agentOverride ? createCoordinatorActor(agentOverride) : coordinatorCanister
+  const result = await actor.get_instruction_analysis(requestId)
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+  return result.Ok
+}
+
+export const updateAgentStatus = async (
+  agentId: string,
+  status: string,
+  agentOverride?: HttpAgent,
+): Promise<void> => {
+  const actor = agentOverride ? createCoordinatorActor(agentOverride) : coordinatorCanister
+  const result = await actor.update_agent_status(agentId, status)
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+}
+
+export const getAgentSpawningMetrics = async (
+  agentOverride?: HttpAgent,
+) => {
+  const actor = agentOverride ? createCoordinatorActor(agentOverride) : coordinatorCanister
+  const result = await actor.get_agent_spawning_metrics()
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+  return result.Ok
+}
+
+export const getCoordinationNetworks = async (
+  agentOverride?: HttpAgent,
+) => {
+  const actor = agentOverride ? createCoordinatorActor(agentOverride) : coordinatorCanister
+  const result = await actor.get_coordination_networks()
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+  return result.Ok
+}
+
+export const upgradeSubscriptionTier = async (
+  tierName: string,
+  agentOverride?: HttpAgent,
+): Promise<void> => {
+  const actor = agentOverride ? createCoordinatorActor(agentOverride) : coordinatorCanister
+  const result = await actor.upgrade_subscription_tier(tierName)
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+}
+
+export const getSubscriptionTierInfo = async (
+  agentOverride?: HttpAgent,
+) => {
+  const actor = agentOverride ? createCoordinatorActor(agentOverride) : coordinatorCanister
+  const result = await actor.get_subscription_tier_info()
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+  return result.Ok
+}
+
+export const listEconomicsReceipts = async (
+  principalFilter: Optional<string>,
+  limit: Optional<number>,
+  agentOverride?: HttpAgent,
+) => {
+  const actor = agentOverride ? createEconActor(agentOverride) : econCanister
+  const result = await actor.list_receipts(principalFilter ? [principalFilter] : [], limit ? [limit] : [])
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+  return result.Ok
+}
+
+export const getEconomicsReceipt = async (
+  receiptId: string,
+  agentOverride?: HttpAgent,
+) => {
+  const actor = agentOverride ? createEconActor(agentOverride) : econCanister
+  const result = await actor.get_receipt(receiptId)
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+  return result.Ok
+}
+
+export const getEconomicsBalance = async (
+  principalFilter: Optional<string>,
+  agentOverride?: HttpAgent,
+) => {
+  const actor = agentOverride ? createEconActor(agentOverride) : econCanister
+  const result = await actor.get_balance(principalFilter ? [principalFilter] : [])
+  if ('Err' in result) {
+    throw new Error(result.Err)
+  }
+  return result.Ok
+}
+
+export interface AdminSnapshot {
+  summaries: ModelSummary[]
+  stats: ModelStats
+  systemHealth: SystemHealthSnapshot
+  auditLog: AuditEvent[]
+  agentHealth: Optional<AgentHealth>
+  agentLoader: Optional<AgentLoaderStats>
+  routing: RoutingOverview
+  econHealth: Optional<EconHealth>
+  econPolicy: FeePolicy
+  econAdmins: string[]
+}
+
+export const loadAdminSnapshot = async (
+  authAgent: HttpAgent,
+): Promise<AdminSnapshot> => {
+  const modelActor = createModelActor(authAgent)
+  const [summaries, systemHealth, auditLog, agentHealth, agentLoader, routing, econHealth, econPolicy, econAdmins] =
+    await Promise.all([
+      listModels(authAgent),
+      getSystemHealthSnapshot(authAgent),
+      readModelAuditLog(modelActor),
+      getAgentHealth(authAgent).catch(() => undefined),
+      getAgentLoaderStats(authAgent),
+      getRoutingOverview(authAgent),
+      getEconomicsHealth(authAgent).catch(() => undefined),
+      getEconomicsPolicy(authAgent),
+      listEconomicsAdmins(authAgent),
+    ])
+
+  const stats = calculateModelStats(summaries)
+
+  return {
+    summaries,
+    stats,
+    systemHealth,
+    auditLog,
+    agentHealth,
+    agentLoader,
+    routing,
+    econHealth,
+    econPolicy,
+    econAdmins,
+  }
+}
+
+export interface WorkflowNodeExecution {
+  nodeId: string
+  agentId: string
+  response: CandidInferenceResponse
+}
+
+export interface CoordinatorWorkflowResult {
+  success: boolean
+  workflowId: string
+  results: WorkflowNodeExecution[]
+}
+
+export const sendMessageToAgent = async (
+  agentId: string,
+  message: string,
+  agentOverride?: HttpAgent,
+): Promise<CandidInferenceResponse> => {
+  const actor = agentOverride ? createAgentActor(agentOverride) : agentCanister
+  const request: CandidInferenceRequest = {
+    prompt: message,
+    msg_id: `msg-${Date.now()}`,
+    seed: BigInt(Date.now()),
+    max_tokens: [],
+    temperature: [],
+    top_p: [],
+  }
+  await actor.bind_model(agentId)
+  return runInference(request, agentOverride)
+}
+
+export const bindAgentAndWireRoutes = async (
+  agentId: string,
+  modelId: string,
+  agentOverride?: HttpAgent,
+  coordinatorOverride?: HttpAgent,
+): Promise<void> => {
+  const agentActor = agentOverride ? createAgentActor(agentOverride) : agentCanister
+  const coordinatorActor = coordinatorOverride ? createCoordinatorActor(coordinatorOverride) : coordinatorCanister
+
+  unwrapEmpty(await agentActor.bind_model(modelId))
+
+  let agentPrincipal = ''
+  try {
+    const principal = await (agentOverride ?? agent).getPrincipal()
+    agentPrincipal = principalToText(principal)
+  } catch {
+    agentPrincipal = ''
+  }
+
+  const registration: AgentRegistration = {
+    agent_id: agentId,
+    agent_principal: agentPrincipal,
+    canister_id: CANISTER_IDS.ohms_agent,
+    capabilities: [],
+    model_id: modelId,
+    health_score: 1,
+    registered_at: BigInt(Date.now()),
+    last_seen: BigInt(Date.now()),
+  }
+
+  await registerAgent(registration, agentOverride)
+  const updateStatus = await coordinatorActor.update_agent_status(agentId, 'Ready')
+  if ('Err' in updateStatus) {
+    throw new Error(updateStatus.Err)
+  }
+}
+
+export const executeCoordinatorWorkflow = async (
+  workflow: { id: string; nodes: Array<{ id: string; type: string; data: { config?: Record<string, unknown> } }> },
+  agentOverride?: HttpAgent,
+): Promise<CoordinatorWorkflowResult> => {
+  const results: WorkflowNodeExecution[] = []
+
+  for (const node of workflow.nodes) {
+    if (node.type !== 'agent') continue
+    const instructions = node.data.config?.instructions
+    if (typeof instructions !== 'string' || instructions.trim().length === 0) {
+      continue
+    }
+
+    const creationRequest: CandidAgentCreationRequest = {
+      instruction: instructions,
+      agent_count: [],
+      capabilities: [],
+      priority: [],
+    }
+
+    const creation = await createAgentsFromInstructionsTyped(creationRequest, agentOverride)
+    const agentId = creation.agent_id
+    const message = `Execute node: ${node.id} -> ${instructions}`
+    const response = await sendMessageToAgent(agentId, message, agentOverride)
+
+    results.push({
+      nodeId: node.id,
+      agentId,
+      response,
+    })
+  }
+
+  return {
+    success: true,
+    workflowId: workflow.id,
+    results,
+  }
+}

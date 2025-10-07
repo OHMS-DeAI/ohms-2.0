@@ -11,8 +11,8 @@ use ic_stable_structures::{
 };
 use ohms_shared::{
     current_time_millis, current_time_seconds, ArtifactChunkInfo, CanisterInfo, CanisterStatus,
-    CanisterType, ComponentHealth, ModelInfo, ModelManifest, ModelState, QuantizedArtifactMetadata,
-    OHMSError, OHMSResult, SystemHealth,
+    CanisterType, ComponentHealth, ModelInfo, ModelManifest, ModelState, OHMSError, OHMSResult,
+    QuantizedArtifactMetadata, SystemHealth,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -358,9 +358,9 @@ pub async fn upload_model(request: ModelUploadRequest) -> OHMSResult<ModelUpload
 
         aggregate_hasher.update(&chunk.data);
         let chunk_size = chunk.data.len() as u64;
-        total_size_bytes = total_size_bytes
-            .checked_add(chunk_size)
-            .ok_or_else(|| OHMSError::InvalidInput("Model payload exceeds supported size".into()))?;
+        total_size_bytes = total_size_bytes.checked_add(chunk_size).ok_or_else(|| {
+            OHMSError::InvalidInput("Model payload exceeds supported size".into())
+        })?;
 
         manifest_entries.push(ArtifactChunkInfo {
             chunk_id: chunk.chunk_id.clone(),
@@ -664,7 +664,10 @@ pub async fn run_inference(request: InferenceRequest) -> OHMSResult<InferenceRes
 
 #[update]
 #[candid_method(update)]
-pub async fn create_inference_session(model_id: String, requester: Principal) -> OHMSResult<String> {
+pub async fn create_inference_session(
+    model_id: String,
+    requester: Principal,
+) -> OHMSResult<String> {
     let session_id = generate_session_id(&model_id, requester);
 
     let session = InferenceSession {
@@ -949,10 +952,12 @@ async fn perform_model_inference(
 
     if let Some(first_chunk_id) = MODELS.with(|models| {
         let key = model_id.to_string();
-        models
-            .borrow()
-            .get(&key)
-            .and_then(|model| model.chunk_manifest.first().map(|chunk| chunk.chunk_id.clone()))
+        models.borrow().get(&key).and_then(|model| {
+            model
+                .chunk_manifest
+                .first()
+                .map(|chunk| chunk.chunk_id.clone())
+        })
     }) {
         if let Some(chunk_bytes) = load_chunk_data(model_id, &first_chunk_id) {
             hasher.update(&chunk_bytes);
@@ -1045,7 +1050,8 @@ async fn update_canister_metrics() {
                 }
                 _ => {
                     total_models += 1;
-                    total_storage_bytes = total_storage_bytes.saturating_add(model.total_size_bytes);
+                    total_storage_bytes =
+                        total_storage_bytes.saturating_add(model.total_size_bytes);
                     total_chunks = total_chunks.saturating_add(model.chunk_manifest.len() as u64);
 
                     match model.status {

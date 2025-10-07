@@ -1,17 +1,19 @@
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { HttpAgent, type Identity } from '@dfinity/agent'
+import { Principal } from '@dfinity/principal'
 import { debugAdminConfig, getAdminStatus, CURRENT_NETWORK, ADMIN_PRINCIPALS } from '../config/adminConfig'
 import { getCanisterIdsFromEnv, NETWORK, HOST } from '../config/network'
-import { 
+import {
   getUserFriendlyErrorMessage,
   getBrowserGuidance,
   isBraveBrowser,
   classifyWalletError,
-  type WalletError
+  type WalletError,
 } from '../utils/walletErrorHandler'
-import { Principal } from '@dfinity/principal'
 import { internetIdentityService, type IIv2User, type GoogleAccountInfo } from '../services/internetIdentityService'
 import { getLlmService, type LlmState, type QuantizedModel, type ConversationSession, LlmError } from '../services/llmService'
+import { createAgentActor, loadAdminSnapshot } from '../services/canisterService'
+import type { AdminSnapshot } from '../services/canisterService'
 
 // Define types for our canisters
 export interface CanisterIds {
@@ -47,7 +49,7 @@ interface AgentContextType {
   isAdmin: boolean
   checkAdminStatus: () => Promise<boolean>
   adminData: AdminData | null
-  refreshAdminData: () => Promise<void>
+  refreshAdminData: () => Promise<AdminData | null>
   initializeServices: () => Promise<void>
   clearConnectionError: () => void
   // LLM functionality
@@ -59,23 +61,7 @@ interface AgentContextType {
   deleteLlmConversation: (sessionId: string) => Promise<void>
 }
 
-interface AdminData {
-  health: {
-    model: any | null
-    agent: any | null
-    coordinator: any | null
-    econ: any | null
-  } | null
-  modelStats: {
-    total: number
-    active: number
-    pending: number
-    deprecated: number
-  }
-  agentHealth: any
-  routingHealth: any
-  econHealth: any
-}
+type AdminData = AdminSnapshot
 
 const AgentContext = createContext<AgentContextType | undefined>(undefined)
 
@@ -180,7 +166,7 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({ children }) => {
       checkAdminStatus().then(isAdminUser => {
         if (isAdminUser) {
           // Admin access granted - logging removed for security
-          refreshAdminData()
+          void refreshAdminData().catch(() => undefined)
         } else {
           // Regular user access - logging removed for security
         }
@@ -443,13 +429,10 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({ children }) => {
         return
       }
 
-      // Import services dynamically to prevent circular dependencies
-      const [{ createAgentActor }, { getApiClient }] = await Promise.all([
-        import('../services/canisterService'),
-        import('../services/apiClient')
-      ])
+      // Import API client dynamically to avoid initializing it unnecessarily
+      const { getApiClient } = await import('../services/apiClient')
 
-      const agentActor = createAgentActor(authAgent as any)
+      const agentActor = createAgentActor(authAgent)
 
       // Get current identity from II v2 service
       const currentIdentity = internetIdentityService.getCurrentIdentity()
@@ -467,61 +450,23 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({ children }) => {
     }
   }
 
-  const refreshAdminData = async () => {
-    if (!isAdmin) return
-    
+  const refreshAdminData = useCallback(async (): Promise<AdminData | null> => {
+    if (!isAdmin) return null
+
     try {
-      // Refreshing admin data
-      const { createModelActor, createAgentActor, createCoordinatorActor, createEconActor } = await import('../services/canisterService')
       const authAgent = await createAuthAgent()
       if (!authAgent) {
-        // No authenticated agent available
-        return
+        return null
       }
-      
-      const modelActor = createModelActor(authAgent)
-      const agentActor = createAgentActor(authAgent as any)
-      const coordinatorActor = createCoordinatorActor(authAgent as any)
-      const econActor = createEconActor(authAgent as any)
-      
-      const [modelsResult, agentHealthResult, coordinatorHealthResult, econHealthResult, modelHealthResult] = await Promise.allSettled([
-        modelActor.list_models([]),
-        agentActor.health(),
-        coordinatorActor.health(),
-        econActor.health(),
-        (modelActor as any).health_check?.() ?? Promise.resolve(null)
-      ])
 
-      const modelList = modelsResult.status === 'fulfilled' ? (modelsResult.value as any[]) : []
-      const agentHealth = agentHealthResult.status === 'fulfilled' ? agentHealthResult.value : null
-      const coordinatorHealth = coordinatorHealthResult.status === 'fulfilled' ? coordinatorHealthResult.value : null
-      const econHealth = econHealthResult.status === 'fulfilled' ? econHealthResult.value : null
-      const modelHealth = modelHealthResult.status === 'fulfilled' ? modelHealthResult.value : null
-      const modelStats = modelList.reduce((acc: any, m: any) => {
-        acc.total += 1
-        const st = Object.keys(m.state || {})[0] || 'Pending'
-        acc[st.toLowerCase()] = (acc[st.toLowerCase()] || 0) + 1
-        return acc
-      }, { total: 0, active: 0, pending: 0, deprecated: 0 })
-      
-      setAdminData({
-        health: {
-          model: modelHealth,
-          agent: agentHealth,
-          coordinator: coordinatorHealth,
-          econ: econHealth
-        },
-        modelStats,
-        agentHealth,
-        routingHealth: coordinatorHealth,
-        econHealth
-      })
-
-      // Admin data refreshed
+      const snapshot = await loadAdminSnapshot(authAgent)
+      setAdminData(snapshot)
+      return snapshot
     } catch (error) {
-      // Failed to refresh admin data
+      setAdminData(null)
+      throw error
     }
-  }
+  }, [createAuthAgent, isAdmin])
 
   return (
     <AgentContext.Provider

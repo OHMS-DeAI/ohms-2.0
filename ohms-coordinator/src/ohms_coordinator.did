@@ -263,6 +263,8 @@ service : {
   get_routing_stats : (opt text) -> (Result_10) query;
   get_subscription_tier_info : () -> (Result_11) query;
   get_swarm_policy : () -> (SwarmPolicy) query;
+  // Get system health (public endpoint for monitoring)
+  get_system_health : () -> (SystemHealth) query;
   get_user_quota_status : () -> (Result_12);
   health : () -> (SystemHealth) query;
   // Execute one iteration of the task

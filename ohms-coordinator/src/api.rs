@@ -537,6 +537,43 @@ fn list_orchestration_tasks() -> Result<Vec<OrchestrationTask>, String> {
     Ok(tasks)
 }
 
+/// Get system health (public endpoint for monitoring)
+#[query]
+fn get_system_health() -> SystemHealth {
+    use ohms_shared::ComponentHealth;
+    use std::collections::HashMap;
+    
+    with_state(|state| {
+        let mut metrics = HashMap::new();
+        metrics.insert("total_agents".to_string(), state.agents.len().to_string());
+        metrics.insert("total_models".to_string(), state.models.len().to_string());
+        metrics.insert("orchestration_tasks".to_string(), state.orchestration_tasks.len().to_string());
+        
+        SystemHealth {
+            canister_id: ic_cdk::api::id(),
+            status: ComponentHealth::Healthy,
+            uptime_seconds: (ic_cdk::api::time() / 1_000_000_000) as u64,
+            memory_usage_mb: {
+                #[cfg(target_arch = "wasm32")]
+                {
+                    const WASM_PAGE_BYTES: f64 = 64.0 * 1024.0;
+                    let heap_pages = core::arch::wasm32::memory_size(0) as f64;
+                    let stable_pages = ic_cdk::api::stable::stable_size() as f64;
+                    let total_bytes = (heap_pages + stable_pages) * WASM_PAGE_BYTES;
+                    (total_bytes / (1024.0 * 1024.0)) as f32
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    0.0_f32
+                }
+            },
+            last_update: ic_cdk::api::time(),
+            version: "2.0.0".to_string(),
+            metrics,
+        }
+    })
+}
+
 candid::export_service!();
 
 #[query(name = "__get_candid_interface_tmp_hack")]

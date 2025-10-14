@@ -35,7 +35,22 @@ impl OrchestrationService {
                 return Ok(task.queen_agent_id.as_ref().unwrap().clone());
             }
 
-            let best_agent = Self::select_best_queen_candidate(&state.agent_capabilities)?;
+            // Auto-create virtual queen agent if no agents exist
+            let best_agent = if state.agent_capabilities.is_empty() {
+                let queen_id = format!("virtual_queen_{}", task_id);
+                let capabilities = AgentCapabilities {
+                    agent_id: queen_id.clone(),
+                    can_plan: true,
+                    can_synthesize: true,
+                    can_evaluate: true,
+                    specializations: vec!["planning".to_string(), "synthesis".to_string()],
+                    performance_score: 0.8,
+                };
+                state.agent_capabilities.insert(queen_id.clone(), capabilities);
+                queen_id
+            } else {
+                Self::select_best_queen_candidate(&state.agent_capabilities)?
+            };
             
             task.queen_agent_id = Some(best_agent.clone());
             task.status = TaskStatus::Planning;
@@ -70,15 +85,26 @@ impl OrchestrationService {
             let queen_id = task.queen_agent_id.as_ref()
                 .ok_or_else(|| "No queen assigned yet".to_string())?;
 
-            let available_agents: Vec<String> = state.agent_capabilities
+            let mut available_agents: Vec<String> = state.agent_capabilities
                 .keys()
                 .filter(|id| *id != queen_id && !task.worker_agents.contains(id))
                 .take(worker_count)
                 .cloned()
                 .collect();
 
-            if available_agents.is_empty() {
-                return Err("No available workers found".to_string());
+            // Auto-create virtual workers if not enough available
+            while available_agents.len() < worker_count {
+                let worker_id = format!("virtual_worker_{}_{}", task_id, available_agents.len());
+                let capabilities = AgentCapabilities {
+                    agent_id: worker_id.clone(),
+                    can_plan: false,
+                    can_synthesize: false,
+                    can_evaluate: false,
+                    specializations: vec!["execution".to_string()],
+                    performance_score: 0.7,
+                };
+                state.agent_capabilities.insert(worker_id.clone(), capabilities);
+                available_agents.push(worker_id);
             }
 
             for agent_id in &available_agents {
@@ -170,10 +196,13 @@ impl OrchestrationService {
             user_id: "queen".to_string(),
         };
 
+        // Use Groq API key (hardcoded for local testing)
+        let api_key = Some("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".to_string());
+        
         let response = HttpOutcallService::make_llm_call(
             &request,
             &LlmProvider::Groq,
-            None,
+            api_key,
         ).await?;
 
         let subtasks = Self::parse_plan_into_subtasks(&response.content)?;
@@ -261,10 +290,13 @@ impl OrchestrationService {
             user_id: worker_id.to_string(),
         };
 
+        // Use Groq API key (hardcoded for local testing)
+        let api_key = Some("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".to_string());
+        
         let response = HttpOutcallService::make_llm_call(
             &request,
             &LlmProvider::Groq,
-            None,
+            api_key,
         ).await;
 
         let execution_time_ms = (time() - start_time) / 1_000_000;
@@ -343,10 +375,13 @@ impl OrchestrationService {
             user_id: "queen".to_string(),
         };
 
+        // Use Groq API key (hardcoded for local testing)
+        let api_key = Some("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".to_string());
+        
         let response = HttpOutcallService::make_llm_call(
             &request,
             &LlmProvider::Groq,
-            None,
+            api_key,
         ).await?;
 
         Ok(response.content)

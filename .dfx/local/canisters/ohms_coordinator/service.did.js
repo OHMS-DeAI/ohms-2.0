@@ -200,7 +200,6 @@ export const idlFactory = ({ IDL }) => {
     'window_ms' : IDL.Nat64,
     'topology' : SwarmTopology,
   });
-  const Result_12 = IDL.Variant({ 'Ok' : QuotaCheckResult, 'Err' : IDL.Text });
   const ComponentHealth = IDL.Variant({
     'Unhealthy' : IDL.Null,
     'Healthy' : IDL.Null,
@@ -216,6 +215,7 @@ export const idlFactory = ({ IDL }) => {
     'uptime_seconds' : IDL.Nat64,
     'last_update' : IDL.Nat64,
   });
+  const Result_12 = IDL.Variant({ 'Ok' : QuotaCheckResult, 'Err' : IDL.Text });
   const Result_13 = IDL.Variant({ 'Ok' : IterationRecord, 'Err' : IDL.Text });
   const Result_14 = IDL.Variant({
     'Ok' : IDL.Vec(AgentRegistration),
@@ -331,6 +331,7 @@ export const idlFactory = ({ IDL }) => {
     'get_routing_stats' : IDL.Func([IDL.Opt(IDL.Text)], [Result_10], ['query']),
     'get_subscription_tier_info' : IDL.Func([], [Result_11], ['query']),
     'get_swarm_policy' : IDL.Func([], [SwarmPolicy], ['query']),
+    'get_system_health' : IDL.Func([], [SystemHealth], ['query']),
     'get_user_quota_status' : IDL.Func([], [Result_12], []),
     'health' : IDL.Func([], [SystemHealth], ['query']),
     'iterate_orchestration_task' : IDL.Func([IDL.Text], [Result_13], []),

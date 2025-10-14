@@ -68,7 +68,7 @@ class ConsoleOverrideManager {
       if (import.meta.env.PROD) {
         if (method === 'error') {
           logger.error('Console Error Captured', { 
-            originalArgs: args.map(this.sanitizeArg),
+            originalArgs: args.map(arg => this.sanitizeArg(arg)),
             source: 'console.error'
           });
         }
@@ -86,7 +86,7 @@ class ConsoleOverrideManager {
         } else if (args.length === 1) {
           override.original(`${prefix} ${this.formatArg(args[0])}`);
         } else {
-          override.original(prefix, ...args.map(this.formatArg));
+          override.original(prefix, ...args.map(arg => this.formatArg(arg)));
         }
         
         // Also log to our professional logger for development insights
@@ -120,7 +120,7 @@ class ConsoleOverrideManager {
   }
 
   private logToProfessionalLogger(method: string, args: any[]): void {
-    const sanitizedArgs = args.map(this.sanitizeArg);
+    const sanitizedArgs = args.map(arg => this.sanitizeArg(arg));
     
     switch (method) {
       case 'error':

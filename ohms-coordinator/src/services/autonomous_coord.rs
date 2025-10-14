@@ -1,4 +1,3 @@
-use crate::domain::*;
 use crate::services::{with_state, with_state_mut};
 use candid::CandidType;
 use ic_cdk::api::time;
@@ -277,7 +276,8 @@ impl AutonomousCoordinationService {
         required_capabilities: &[String],
     ) -> Result<Vec<AgentCapabilityProfile>, String> {
         with_state(|state| {
-            if let Some(profiles) = &state.agent_capability_profiles {
+            let profiles = &state.agent_capability_profiles;
+            if !profiles.is_empty() {
                 let suitable: Vec<AgentCapabilityProfile> = profiles
                     .values()
                     .filter(|profile| {
@@ -375,7 +375,7 @@ impl AutonomousCoordinationService {
     pub async fn initiate_collaboration(
         problem_description: String,
         participating_agents: Vec<String>,
-        collaboration_type: CoordinationType,
+        _collaboration_type: CoordinationType,
     ) -> Result<String, String> {
         let resource_constraints = ResourceConstraints {
             max_execution_time_ms: 1800000,            // 30 minutes
@@ -419,10 +419,6 @@ impl AutonomousCoordinationService {
         availability_status: AvailabilityStatus,
     ) -> Result<(), String> {
         with_state_mut(|state| {
-            if state.agent_capability_profiles.is_none() {
-                state.agent_capability_profiles = Some(HashMap::new());
-            }
-
             let profile = AgentCapabilityProfile {
                 agent_id: agent_id.clone(),
                 capabilities,
@@ -439,11 +435,7 @@ impl AutonomousCoordinationService {
                 },
             };
 
-            state
-                .agent_capability_profiles
-                .as_mut()
-                .unwrap()
-                .insert(agent_id, profile);
+            state.agent_capability_profiles.insert(agent_id, profile);
         });
 
         Ok(())
@@ -491,22 +483,13 @@ impl AutonomousCoordinationService {
                 })
                 .unwrap_or(0);
 
-            let total_agents = state
-                .agent_capability_profiles
-                .as_ref()
-                .map(|p| p.len() as u32)
-                .unwrap_or(0);
+            let total_agents = state.agent_capability_profiles.len() as u32;
 
             let available_agents = state
                 .agent_capability_profiles
-                .as_ref()
-                .map(|profiles| {
-                    profiles
-                        .values()
-                        .filter(|p| matches!(p.availability_status, AvailabilityStatus::Available))
-                        .count() as u32
-                })
-                .unwrap_or(0);
+                .values()
+                .filter(|p| matches!(p.availability_status, AvailabilityStatus::Available))
+                .count() as u32;
 
             CoordinationStats {
                 total_coordination_sessions: total_sessions,

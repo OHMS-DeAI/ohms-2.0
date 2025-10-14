@@ -6,8 +6,8 @@ edition.workspace = true
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-schemars = { version = "0.8", features = ["chrono"] }
 chrono = { workspace = true, features = ["serde"] }
+schemars = { version = "0.8", features = ["chrono"] }
 hex = "0.4"
 
 [dev-dependencies]

@@ -139,7 +139,7 @@ impl AgentSpawningService {
     async fn create_agent_instance(
         spec: &AgentSpec,
         user_principal: &str,
-        index: usize,
+        _index: usize,
     ) -> Result<SpawnedAgent, String> {
         // Generate unique agent ID
         let agent_id = format!("agent_{}_{}_{}", user_principal, spec.agent_type, time());
@@ -223,7 +223,7 @@ impl AgentSpawningService {
             state
                 .agents
                 .insert(config.agent_id.clone(), agent_registration);
-            state.metrics.total_agents = state.agents.len() as u64;
+            state.metrics.total_agents = state.agents.len() as u32;
             state.metrics.last_activity = time();
         });
 
@@ -243,7 +243,7 @@ impl AgentSpawningService {
 
     /// Setup coordination network for multiple agents
     async fn setup_coordination_network(agents: &[SpawnedAgent]) -> Result<String, String> {
-        use crate::services::autonomous_coord::{CoordinationSession, CoordinationType};
+        use crate::services::autonomous_coord::CoordinationSession;
 
         let network_id = format!("network_{}", time());
 
@@ -292,12 +292,8 @@ impl AgentSpawningService {
         use crate::services::autonomous_coord::AgentCapabilityProfile;
 
         with_state_mut(|state| {
-            if state.agent_capability_profiles.is_none() {
-                state.agent_capability_profiles = Some(std::collections::HashMap::new());
-            }
-
-            if let Some(ref mut profiles) = state.agent_capability_profiles {
-                for agent in agents {
+            let profiles = &mut state.agent_capability_profiles;
+            for agent in agents {
                     let profile = AgentCapabilityProfile {
                         agent_id: agent.agent_id.clone(),
                         capabilities: agent.capabilities.clone(),
@@ -319,7 +315,6 @@ impl AgentSpawningService {
                     };
                     profiles.insert(agent.agent_id.clone(), profile);
                 }
-            }
         });
 
         Ok(())

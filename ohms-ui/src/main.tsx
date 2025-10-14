@@ -16,8 +16,9 @@ logger.info('OHMS 2.0 Application Starting', {
 });
 
 // Install console override system
-consoleManager.install();
-consoleManager.captureGlobalErrors();
+// Temporarily disabled due to recursion issue
+// consoleManager.install();
+// consoleManager.captureGlobalErrors();
 
 // Initialize extension error support for legacy wallet extension noise
 initializeExtensionErrorSupport()

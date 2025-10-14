@@ -21,6 +21,9 @@ import Landing from './pages/Landing'
 import About from './pages/About'
 import Pricing from './pages/Pricing'
 import Features from './pages/Features'
+import MultiAgentOrchestrator from './pages/MultiAgentOrchestrator'
+import TaskDetailView from './pages/TaskDetailView'
+import LLMSettings from './pages/LLMSettings'
 import { AgentProvider } from './context/AgentContext'
 
 // Development-only imports
@@ -83,6 +86,21 @@ function App() {
                   <Route path="/verify" element={
                     <ProtectedRoute>
                       <Verify />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/orchestrate" element={
+                    <ProtectedRoute>
+                      <MultiAgentOrchestrator />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/orchestrate/:taskId" element={
+                    <ProtectedRoute>
+                      <TaskDetailView />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/settings/llm" element={
+                    <ProtectedRoute>
+                      <LLMSettings />
                     </ProtectedRoute>
                   } />
 

@@ -75,7 +75,6 @@ impl InstructionAnalyzerService {
         let mut required_capabilities = Vec::new();
         let mut model_requirements = Vec::new();
         let mut specializations = Vec::new();
-        let mut coordination_needs = Vec::new();
 
         // Analyze instructions against patterns
         for pattern in &patterns {
@@ -90,7 +89,7 @@ impl InstructionAnalyzerService {
         let agent_count = Self::determine_agent_count(&instructions_lower, &required_capabilities);
 
         // Determine coordination needs
-        coordination_needs = Self::determine_coordination_needs(&instructions_lower, agent_count);
+        let coordination_needs = Self::determine_coordination_needs(&instructions_lower, agent_count);
 
         // Determine complexity level
         let complexity_level = Self::determine_complexity_level(agent_count, &coordination_needs);
@@ -288,7 +287,7 @@ impl InstructionAnalyzerService {
         user_principal: &str,
         requested_agents: u32,
     ) -> Result<QuotaCheckResult, String> {
-        use crate::services::quota_manager::{InferenceRate, QuotaLimits, QuotaManager, UserQuota};
+        use crate::services::quota_manager::{InferenceRate, QuotaLimits, UserQuota};
 
         // Get or create user quota
         let user_quota = with_state(|state| state.user_quotas.get(user_principal).cloned())

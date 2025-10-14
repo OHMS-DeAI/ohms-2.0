@@ -47,7 +47,7 @@
       "args": "-C link-arg=-Wl,--no-undefined-version"
     },
     "canister_http": {
-      "enabled": false
+      "enabled": true
     },
     "rust": {
       "args": ""

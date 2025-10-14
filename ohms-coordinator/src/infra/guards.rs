@@ -1,7 +1,5 @@
 use candid::Principal;
-use ic_cdk::api::{caller, time};
-use std::cell::RefCell;
-use std::collections::HashMap;
+use ic_cdk::api::caller;
 
 pub struct Guards;
 

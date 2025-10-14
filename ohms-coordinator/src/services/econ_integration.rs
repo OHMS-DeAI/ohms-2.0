@@ -279,7 +279,7 @@ impl EconIntegrationService {
     /// Track agent creation in economics canister
     pub async fn track_agent_creation(
         user_principal: &str,
-        agent_count: u32,
+        _agent_count: u32,
     ) -> Result<(), String> {
         // This would typically update usage metrics in the economics canister
         // For now, we'll just sync the quota to ensure consistency
@@ -287,7 +287,7 @@ impl EconIntegrationService {
     }
 
     /// Track token usage in economics canister
-    pub async fn track_token_usage(user_principal: &str, tokens: u64) -> Result<(), String> {
+    pub async fn track_token_usage(user_principal: &str, _tokens: u64) -> Result<(), String> {
         // This would typically update usage metrics in the economics canister
         // For now, we'll just sync the quota to ensure consistency
         Self::sync_user_quota_from_economics(user_principal).await

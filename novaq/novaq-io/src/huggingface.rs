@@ -1,17 +1,14 @@
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::Path;
 
-use anyhow::{anyhow, Context, Result};
-use futures::StreamExt;
-use reqwest::header::{ACCEPT, USER_AGENT};
+use anyhow::{anyhow, Result};
 use reqwest::Client;
-use tokio::{fs::File, io::AsyncWriteExt};
-use tracing::instrument;
+use tracing::{info, instrument};
 
 use crate::artifact::ArtifactWriter;
 use crate::format::ModelLocator;
-use crate::gguf::GgufLoader;
-use crate::safetensors::SafeTensorsLoader;
+use crate::hf_api::{parse_repo_spec, HuggingFaceApiClient};
+use crate::progress::{BandwidthMonitor, ProgressTracker};
+use crate::streaming_safetensors_v2::StreamingSafeTensorsParserV2;
 use novaq_core::{QuantizationConfig, QuantizedModel};
 
 #[derive(Debug, Clone)]
@@ -22,7 +19,7 @@ pub struct HuggingFaceConfig {
 
 impl Default for HuggingFaceConfig {
     fn default() -> Self {
-        const USER_AGENT_VALUE: &str = "novaq-cli/0.1 (+https://github.com/ohms-labs/ohms)";
+        const USER_AGENT_VALUE: &str = "novaq-cli/0.1 (+https://github.com/OHMS-DeAI/ohms-2.0)";
         let client = Client::builder()
             .user_agent(USER_AGENT_VALUE)
             .build()
@@ -35,18 +32,109 @@ impl Default for HuggingFaceConfig {
 }
 
 pub struct HuggingFaceLoader {
-    cfg: HuggingFaceConfig,
-    safetensors: SafeTensorsLoader,
-    gguf: GgufLoader,
+    api_client: HuggingFaceApiClient,
+    config: QuantizationConfig,
+    progress: Option<ProgressTracker>,
 }
 
 impl HuggingFaceLoader {
-    pub fn new(cfg: HuggingFaceConfig, config: QuantizationConfig) -> Result<Self> {
+    pub fn new(
+        hf_config: HuggingFaceConfig,
+        quant_config: QuantizationConfig,
+    ) -> Result<Self> {
+        let api_client = HuggingFaceApiClient::new(hf_config.token.clone())?;
         Ok(Self {
-            cfg,
-            safetensors: SafeTensorsLoader::new(config.clone())?,
-            gguf: GgufLoader::new(config)?,
+            api_client,
+            config: quant_config,
+            progress: None,
         })
+    }
+
+    pub fn with_progress(mut self, progress: ProgressTracker) -> Self {
+        self.progress = Some(progress);
+        self
+    }
+
+    #[instrument(skip(self, writer))]
+    pub async fn load_from_repo(
+        &self,
+        locator: &ModelLocator,
+        writer: &mut ArtifactWriter,
+    ) -> Result<QuantizedModel> {
+        let (repo_id, revision) = parse_repo_spec(locator.as_str())?;
+        info!(repo_id, revision, "loading model from HuggingFace");
+
+        let shards = self
+            .api_client
+            .detect_model_shards(&repo_id, &revision)
+            .await?;
+
+        if shards.is_empty() {
+            return Err(anyhow!("no model files found in repository"));
+        }
+
+        info!(shard_count = shards.len(), "detected model shards");
+
+        let mut all_layers = Vec::new();
+        let bandwidth_monitor = BandwidthMonitor::new();
+
+        for (idx, shard) in shards.iter().enumerate() {
+            info!(
+                shard = idx + 1,
+                total = shards.len(),
+                file = shard.path,
+                size_mb = shard.size / 1_048_576,
+                "processing shard"
+            );
+
+            let progress_bar = if let Some(ref progress) = self.progress {
+                Some(progress.add_download_bar(&shard.path, shard.size))
+            } else {
+                None
+            };
+
+            let mut reader = self
+                .api_client
+                .download_file_streaming(&shard.download_url)
+                .await?;
+
+            let extension = Path::new(&shard.path)
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_lowercase();
+
+            let model = match extension.as_str() {
+                "safetensors" => {
+                    let parser = StreamingSafeTensorsParserV2::new(
+                        self.config.clone(),
+                        self.progress.clone(),
+                    )?;
+                    parser.parse_and_quantize(&mut reader, writer).await?
+                }
+                _ => {
+                    return Err(anyhow!(
+                        "unsupported file extension: {} (expected .safetensors)",
+                        extension
+                    ))
+                }
+            };
+
+            if let Some(ref pb) = progress_bar {
+                pb.finish_with_message(format!("Completed {}", shard.path));
+            }
+
+            all_layers.extend(model.layers);
+        }
+
+        info!(
+            total_layers = all_layers.len(),
+            bandwidth_mbps = bandwidth_monitor.average_bandwidth_mbps(),
+            total_mb = bandwidth_monitor.total_bytes() / 1_048_576,
+            "completed streaming quantization"
+        );
+
+        Ok(QuantizedModel::from_layers(all_layers))
     }
 
     #[instrument(skip(self, writer))]
@@ -55,206 +143,17 @@ impl HuggingFaceLoader {
         locator: &ModelLocator,
         writer: &mut ArtifactWriter,
     ) -> Result<QuantizedModel> {
-        let spec = parse_snapshot(locator)?;
-
-        let mut request = self
-            .cfg
-            .client
-            .get(spec.download_url.clone())
-            .header(ACCEPT, "application/octet-stream");
-        if let Some(token) = &self.cfg.token {
-            request = request.bearer_auth(token);
-        }
-
-        request = request.header(USER_AGENT, "novaq-cli/0.1");
-
-        let response = request.send().await?.error_for_status()?;
-        let tmp_path = unique_temp_path(&spec.file_path);
-        let mut file = File::create(&tmp_path).await?;
-        let mut stream = response.bytes_stream();
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk?;
-            file.write_all(&chunk).await?;
-        }
-        file.flush().await?;
-        drop(file);
-
-        let reader = tokio::fs::File::open(&tmp_path).await?;
-        let mut reader = tokio::io::BufReader::new(reader);
-        let extension = Path::new(&spec.file_path)
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .unwrap_or_default()
-            .to_ascii_lowercase();
-
-        let model = match extension.as_str() {
-            "safetensors" => {
-                self.safetensors
-                    .load_from_reader(&mut reader, writer)
-                    .await?
-            }
-            "gguf" => self.gguf.load_from_reader(&mut reader, writer).await?,
-            other => {
-                return Err(anyhow!(
-                    "unsupported Hugging Face artifact extension: {}",
-                    other
-                ))
-            }
-        };
-        tokio::fs::remove_file(&tmp_path).await.ok();
-        Ok(model)
+        self.load_from_repo(locator, writer).await
     }
-}
-
-#[cfg_attr(not(test), allow(dead_code))]
-struct SnapshotSpec {
-    repo: String,
-    revision: String,
-    file_path: String,
-    download_url: String,
-}
-
-fn parse_snapshot(locator: &ModelLocator) -> Result<SnapshotSpec> {
-    let url = locator
-        .as_url()
-        .context("expected huggingface URL with scheme")?;
-
-    let scheme = url.scheme();
-    if scheme != "hf" && scheme != "https" {
-        return Err(anyhow!(
-            "huggingface locator must use hf:// or https://huggingface.co"
-        ));
-    }
-
-    if scheme == "https" && url.host_str() != Some("huggingface.co") {
-        return Err(anyhow!("huggingface https locator must target huggingface.co"));
-    }
-
-    let mut segments: Vec<String> = url
-        .path_segments()
-        .map(|s| s.map(str::to_string).collect())
-        .ok_or_else(|| anyhow!("invalid huggingface path"))?;
-
-    let mut revision_from_query = false;
-    let mut revision = url
-        .query_pairs()
-        .find(|(key, _)| key == "revision" || key == "ref")
-        .map(|(_, value)| {
-            revision_from_query = true;
-            value.into_owned()
-        })
-        .unwrap_or_else(|| "main".to_string());
-
-    let (owner, mut repo_name, mut remaining_segments): (String, String, Vec<String>) =
-        if scheme == "hf" {
-            let owner = url
-                .host_str()
-                .ok_or_else(|| anyhow!("huggingface locator missing owner"))?
-                .to_string();
-            if segments.is_empty() {
-                return Err(anyhow!("huggingface locator missing repository name"));
-            }
-            let repo_part = segments.remove(0);
-            (owner, repo_part, segments)
-        } else {
-            if segments.len() < 3 {
-                return Err(anyhow!(
-                    "huggingface snapshot requires owner, repo, and file path"
-                ));
-            }
-            let owner = segments.remove(0);
-            let repo_part = segments.remove(0);
-            (owner, repo_part, segments)
-        };
-
-    if let Some(at_index) = repo_name.find('@') {
-        let rev = repo_name[at_index + 1..].to_string();
-        repo_name.truncate(at_index);
-        revision = rev;
-    }
-
-    if !remaining_segments.is_empty() {
-        match remaining_segments[0].as_str() {
-            "resolve" | "blob" | "raw" => {
-                if remaining_segments.len() < 3 {
-                    return Err(anyhow!(
-                        "huggingface locator missing revision or file name"
-                    ));
-                }
-                if !revision_from_query {
-                    revision = remaining_segments[1].clone();
-                }
-                remaining_segments.drain(0..2);
-            }
-            _ => {}
-        }
-    }
-
-    if remaining_segments.is_empty() {
-        return Err(anyhow!("huggingface snapshot missing file path"));
-    }
-
-    let file_path = remaining_segments.join("/");
-    let repo = format!("{owner}/{repo_name}");
-    let download_url = format!(
-        "https://huggingface.co/{repo}/resolve/{revision}/{file_path}"
-    );
-
-    Ok(SnapshotSpec {
-        repo,
-        revision,
-        file_path,
-        download_url,
-    })
-}
-
-fn unique_temp_path(source: &str) -> PathBuf {
-    let suffix = Path::new(source)
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .map(|ext| format!(".{}", ext))
-        .unwrap_or_default();
-    let micros = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_micros())
-        .unwrap_or(0);
-    let pid = std::process::id();
-    std::env::temp_dir().join(format!("novaq-hf-{}-{}{}", pid, micros, suffix))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::format::ModelLocator;
 
     #[test]
-    fn parses_hf_scheme_with_revision_override() {
-        let locator = ModelLocator::new(
-            "hf://meta-llama/Meta-Llama-3.1-8B-Instruct@dev/consolidated.safetensors",
-        );
-        let spec = parse_snapshot(&locator).expect("parse should succeed");
-        assert_eq!(spec.repo, "meta-llama/Meta-Llama-3.1-8B-Instruct");
-        assert_eq!(spec.revision, "dev");
-        assert_eq!(spec.file_path, "consolidated.safetensors");
-        assert!(spec
-            .download_url
-            .ends_with("/dev/consolidated.safetensors"));
-    }
-
-    #[test]
-    fn parses_https_resolve_path() {
-        let locator = ModelLocator::new("https://huggingface.co/meta-llama/Meta-Llama-3.1-8B-Instruct/resolve/main/consolidated.safetensors");
-        let spec = parse_snapshot(&locator).expect("parse should succeed");
-        assert_eq!(spec.repo, "meta-llama/Meta-Llama-3.1-8B-Instruct");
-        assert_eq!(spec.revision, "main");
-        assert_eq!(spec.file_path, "consolidated.safetensors");
-    }
-
-    #[test]
-    fn parses_blob_path_and_revision_query() {
-        let locator = ModelLocator::new("https://huggingface.co/meta-llama/Meta-Llama-3.1-8B-Instruct/blob/main/consolidated.gguf?revision=release");
-        let spec = parse_snapshot(&locator).expect("parse should succeed");
-        assert_eq!(spec.revision, "release");
-        assert_eq!(spec.file_path, "consolidated.gguf");
+    fn test_default_config() {
+        let config = HuggingFaceConfig::default();
+        assert!(config.token.is_none());
     }
 }

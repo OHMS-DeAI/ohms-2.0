@@ -3,6 +3,9 @@ use ohms_shared::ModelManifest;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+pub mod orchestration;
+pub use orchestration::*;
+
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct AgentRegistration {
     pub agent_id: String,

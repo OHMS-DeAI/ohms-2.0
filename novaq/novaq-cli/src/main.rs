@@ -7,7 +7,7 @@ use ndarray::Array2;
 use novaq_core::{QuantizationConfig, Quantizer};
 use novaq_io::{
     assemble_manifest, ArtifactWriter, ArtifactWriterConfig, GgufLoader, HuggingFaceConfig,
-    HuggingFaceLoader, ModelFormat, ModelLocator, SafeTensorsLoader,
+    HuggingFaceLoader, ModelFormat, ModelLocator, ProgressTracker, SafeTensorsLoader,
 };
 use novaq_manifest::Manifest;
 use rand::{Rng, SeedableRng};
@@ -22,7 +22,6 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Quantize a synthetic matrix to validate the toolkit build.
     CompressMatrix {
         #[arg(long, default_value_t = 32)]
         rows: usize,
@@ -31,14 +30,30 @@ enum Commands {
         #[arg(long, default_value_t = 7)]
         seed: u64,
     },
-    /// Compress a model from disk using the NOVAQ pipeline.
     Compress {
-        /// Input model locator (e.g. local path or huggingface URL).
         #[arg(long)]
         input: String,
-        /// Output directory for artifacts.
+
         #[arg(long, default_value = "artifacts")]
         output: PathBuf,
+
+        #[arg(long)]
+        hf_token: Option<String>,
+
+        #[arg(long, default_value_t = 1.5)]
+        target_bits: f32,
+
+        #[arg(long, default_value_t = 16)]
+        level1_centroids: usize,
+
+        #[arg(long, default_value_t = 8)]
+        level2_centroids: usize,
+
+        #[arg(long, default_value_t = 16)]
+        max_subspace_dim: usize,
+
+        #[arg(long)]
+        disable_progress: bool,
     },
 }
 
@@ -53,8 +68,26 @@ fn main() -> Result<()> {
         Commands::CompressMatrix { rows, cols, seed } => {
             run_compress_matrix(rows, cols, seed)?;
         }
-        Commands::Compress { input, output } => {
-            run_compress_model(&input, &output)?;
+        Commands::Compress {
+            input,
+            output,
+            hf_token,
+            target_bits,
+            level1_centroids,
+            level2_centroids,
+            max_subspace_dim,
+            disable_progress,
+        } => {
+            run_compress_model(
+                &input,
+                &output,
+                hf_token,
+                target_bits,
+                level1_centroids,
+                level2_centroids,
+                max_subspace_dim,
+                !disable_progress,
+            )?;
         }
     }
     Ok(())
@@ -85,7 +118,16 @@ fn run_compress_matrix(rows: usize, cols: usize, seed: u64) -> Result<()> {
     Ok(())
 }
 
-fn run_compress_model(input: &str, output: &Path) -> Result<()> {
+fn run_compress_model(
+    input: &str,
+    output: &Path,
+    hf_token: Option<String>,
+    target_bits: f32,
+    level1_centroids: usize,
+    level2_centroids: usize,
+    max_subspace_dim: usize,
+    enable_progress: bool,
+) -> Result<()> {
     let locator = ModelLocator::new(input);
     locator
         .validate()
@@ -100,7 +142,14 @@ fn run_compress_model(input: &str, output: &Path) -> Result<()> {
     writer.set_metadata("source", locator.as_str());
     writer.set_metadata("format", format_string(format));
 
-    let config = QuantizationConfig::default();
+    let config = QuantizationConfig {
+        target_bits,
+        level1_centroids,
+        level2_centroids,
+        max_subspace_dim,
+        ..QuantizationConfig::default()
+    };
+
     let runtime = tokio::runtime::Runtime::new()?;
     let model = match format {
         ModelFormat::SafeTensors => {
@@ -120,18 +169,25 @@ fn run_compress_model(input: &str, output: &Path) -> Result<()> {
             })?
         }
         ModelFormat::HuggingFaceSnapshot => {
+            let token = hf_token
+                .or_else(|| std::env::var("HUGGINGFACE_TOKEN").ok())
+                .or_else(|| std::env::var("HF_TOKEN").ok());
+
             let mut hf_cfg = HuggingFaceConfig::default();
-            if let Ok(token) = std::env::var("HUGGINGFACE_TOKEN")
-                .or_else(|_| std::env::var("HF_TOKEN"))
-            {
-                hf_cfg.token = Some(token);
+            hf_cfg.token = token;
+
+            let mut loader = HuggingFaceLoader::new(hf_cfg, config.clone())?;
+
+            if enable_progress {
+                let progress = ProgressTracker::new();
+                loader = loader.with_progress(progress);
             }
-            let loader = HuggingFaceLoader::new(hf_cfg, config.clone())?;
-            runtime.block_on(async { loader.load_snapshot(&locator, &mut writer).await })?
+
+            runtime.block_on(async { loader.load_from_repo(&locator, &mut writer).await })?
         }
         _ => {
             return Err(anyhow!(
-                "unsupported model format: {:?}. supported inputs are safetensors, gguf, and huggingface snapshots",
+                "unsupported model format: {:?}. Supported inputs are safetensors, gguf, and huggingface snapshots",
                 format
             ));
         }

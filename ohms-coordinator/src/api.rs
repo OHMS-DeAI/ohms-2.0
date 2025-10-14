@@ -2,7 +2,7 @@ use crate::domain::*;
 use crate::infra::{Guards, Metrics};
 use crate::services::{
     with_state, with_state_mut, AgentSpawningService, EconIntegrationService,
-    InstructionAnalyzerService, RegistryService, RoutingService,
+    InstructionAnalyzerService, OrchestrationService, RegistryService, RoutingService,
 };
 use ic_cdk_macros::*;
 use ohms_shared::{ModelManifest, SystemHealth};
@@ -475,6 +475,66 @@ async fn validate_token_usage_quota(tokens: u64) -> Result<QuotaValidation, Stri
     Guards::require_caller_authenticated()?;
     let user_principal = ic_cdk::api::caller().to_string();
     EconIntegrationService::validate_token_usage_quota(&user_principal, tokens).await
+}
+
+/// Create orchestration task
+#[update]
+async fn create_orchestration_task(instructions: String) -> Result<OrchestrationTask, String> {
+    Guards::require_caller_authenticated()?;
+    let user_id = ic_cdk::api::caller().to_string();
+    
+    let task = OrchestrationService::create_task(user_id.clone(), instructions)?;
+    
+    let task_id = task.task_id.clone();
+    OrchestrationService::promote_queen(&task_id)?;
+    OrchestrationService::assign_workers(&task_id, 3)?;
+    
+    Ok(task)
+}
+
+/// Execute one iteration of the task
+#[update]
+async fn iterate_orchestration_task(task_id: String) -> Result<IterationRecord, String> {
+    Guards::require_caller_authenticated()?;
+    OrchestrationService::execute_iteration(task_id).await
+}
+
+/// Get task status
+#[query]
+fn get_orchestration_task_status(task_id: String) -> Result<OrchestrationTask, String> {
+    Guards::require_caller_authenticated()?;
+    OrchestrationService::get_task_status(&task_id)
+}
+
+/// Get task progress
+#[query]
+fn get_orchestration_task_progress(task_id: String) -> Result<TaskProgress, String> {
+    Guards::require_caller_authenticated()?;
+    OrchestrationService::get_task_progress(&task_id)
+}
+
+/// Cancel orchestration task
+#[update]
+fn cancel_orchestration_task(task_id: String) -> Result<(), String> {
+    Guards::require_caller_authenticated()?;
+    OrchestrationService::cancel_task(&task_id)
+}
+
+/// List user's orchestration tasks
+#[query]
+fn list_orchestration_tasks() -> Result<Vec<OrchestrationTask>, String> {
+    Guards::require_caller_authenticated()?;
+    let user_id = ic_cdk::api::caller().to_string();
+    
+    let tasks = with_state(|state| {
+        state.orchestration_tasks
+            .values()
+            .filter(|task| task.user_id == user_id)
+            .cloned()
+            .collect::<Vec<_>>()
+    });
+    
+    Ok(tasks)
 }
 
 candid::export_service!();

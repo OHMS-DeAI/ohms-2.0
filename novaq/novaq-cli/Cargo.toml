@@ -16,3 +16,4 @@ rand.workspace = true
 serde_json.workspace = true
 serde = { workspace = true, features = ["derive"] }
 tokio = { version = "1.41", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util"] }
+indicatif.workspace = true

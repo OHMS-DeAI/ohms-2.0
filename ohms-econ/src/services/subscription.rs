@@ -19,22 +19,23 @@ impl SubscriptionService {
         tiers.insert("free".to_string(), TierConfig {
             name: "Free".to_string(),
             monthly_fee_usd: 0,
-            max_agents: 1,
-            monthly_agent_creations: 3,
-            token_limit: 10_000,
+            max_agents: 5,
+            monthly_agent_creations: 20,
+            token_limit: 100_000,
             inference_rate: InferenceRate::Standard,
             features: vec![
-                "1 concurrent agent".to_string(),
-                "3 agent creations per month".to_string(),
-                "10K tokens per month".to_string(),
+                "5 concurrent agents".to_string(),
+                "20 agent creations per month".to_string(),
+                "100K tokens per month".to_string(),
                 "Standard inference priority".to_string(),
+                "Multi-agent orchestration".to_string(),
                 "Community support".to_string(),
             ],
         });
 
         tiers.insert("basic".to_string(), TierConfig {
             name: "Basic".to_string(),
-            monthly_fee_usd: 0, // FREE for 1 month
+            monthly_fee_usd: 29,
             max_agents: 5,
             monthly_agent_creations: 10,
             token_limit: 100_000,
@@ -44,7 +45,8 @@ impl SubscriptionService {
                 "10 agent creations per month".to_string(),
                 "100K tokens per month".to_string(),
                 "Standard inference priority".to_string(),
-                "FREE for 1 month".to_string(),
+                "Multi-agent orchestration".to_string(),
+                "Email support".to_string(),
             ],
         });
 

@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0.0",
+  "created_at": "2025-10-08T11:09:08.163949606Z",
+  "generator": "novaq-cli/0.1.0",
+  "source_locator": "hf://TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "quantization": {
+    "config": {
+      "distillation_cosine_weight": 0.5,
+      "distillation_kl_weight": 1.0,
+      "level1_centroids": 16,
+      "level2_centroids": 8,
+      "max_iterations": 100,
+      "max_refinement_steps": 25,
+      "max_subspace_dim": 16,
+      "min_cluster_size": 4,
+      "min_subspace_dim": 4,
+      "outlier_percentile": 0.009999999776482582,
+      "refinement_learning_rate": 0.009999999776482582,
+      "residual_variance_floor": 9.999999974752427e-7,
+      "seed": 42,
+      "target_bits": 1.5,
+      "tolerance": 0.00009999999747378752,
+      "use_parallel": true
+    },
+    "summary": {
+      "average_residual_energy": 0.0,
+      "global_cosine_similarity": 0.0,
+      "global_kl_divergence": 0.0,
+      "global_mse": 0.0,
+      "max_residual_energy": 0.0,
+      "total_compressed_bits": 0,
+      "total_layers": 0,
+      "total_original_bits": 0,
+      "total_parameters": 0
+    }
+  },
+  "chunks": [],
+  "layers": {},
+  "metadata": {
+    "format": "huggingface",
+    "source": "hf://TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+  }
+}

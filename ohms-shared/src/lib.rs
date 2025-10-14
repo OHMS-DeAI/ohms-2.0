@@ -3,6 +3,8 @@
 
 pub mod communication;
 pub mod registry;
+pub mod llm_client;
+pub mod types;
 
 use candid::{CandidType, Deserialize, Principal};
 use serde::Serialize;

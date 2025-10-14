@@ -1,4 +1,3 @@
-use ic_cdk::api::time;
 use std::cell::RefCell;
 use std::collections::HashMap;
 

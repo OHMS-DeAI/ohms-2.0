@@ -402,3 +402,186 @@ export const parseBalance = (balance: string): bigint => {
   // Convert from ICP to smallest unit (assuming 8 decimal places)
   return BigInt(Math.floor(parseFloat(balance) * 100_000_000));
 };
+
+// ==============================================================================
+// Multi-Agent Orchestration Types
+// ==============================================================================
+
+export type TaskStatus = 
+  | 'Created'
+  | 'Planning'
+  | 'Executing'
+  | 'Reviewing'
+  | 'Completed'
+  | 'Failed'
+  | 'Cancelled';
+
+export interface OrchestrationTask {
+  task_id: string;
+  user_id: string;
+  instructions: string;
+  queen_agent_id?: string;
+  worker_agents: string[];
+  status: TaskStatus;
+  iterations: IterationRecord[];
+  quality_score: number;
+  quality_threshold: number;
+  max_iterations: number;
+  created_at: bigint;
+  completed_at?: bigint;
+  error_message?: string;
+}
+
+export interface IterationRecord {
+  iteration_num: number;
+  queen_plan: string;
+  worker_executions: WorkerExecution[];
+  peer_communications: PeerMessage[];
+  queen_synthesis: string;
+  quality_score: number;
+  timestamp: bigint;
+  duration_ms: bigint;
+}
+
+export interface WorkerExecution {
+  agent_id: string;
+  assigned_subtask: string;
+  result: string;
+  tokens_used: number;
+  execution_time_ms: bigint;
+  success: boolean;
+  error_message?: string;
+}
+
+export interface PeerMessage {
+  message_id: string;
+  from_agent: string;
+  to_agent: string;
+  message_type: PeerMessageType;
+  content: string;
+  timestamp: bigint;
+}
+
+export type PeerMessageType = 
+  | 'Question'
+  | 'Answer'
+  | 'Suggestion'
+  | 'Status'
+  | 'Error';
+
+export interface ExecutionPlan {
+  strategy: string;
+  subtasks: Subtask[];
+  estimated_duration_ms: bigint;
+  success_criteria: string[];
+}
+
+export interface Subtask {
+  subtask_id: string;
+  description: string;
+  assigned_to?: string;
+  dependencies: string[];
+  priority: number;
+}
+
+export interface TaskProgress {
+  task_id: string;
+  status: TaskStatus;
+  current_iteration: number;
+  max_iterations: number;
+  quality_score: number;
+  quality_threshold: number;
+  progress_percentage: number;
+  estimated_completion_ms?: bigint;
+  queen_agent?: string;
+  active_workers: number;
+  total_tokens_used: number;
+}
+
+export type AgentRole = 'Queen' | 'Worker' | 'Idle';
+
+export interface AgentCapabilities {
+  agent_id: string;
+  can_plan: boolean;
+  can_synthesize: boolean;
+  can_evaluate: boolean;
+  specializations: string[];
+  performance_score: number;
+}
+
+// ==============================================================================
+// LLM Provider Types
+// ==============================================================================
+
+export type LlmProvider = 
+  | 'Groq'
+  | 'TogetherAi'
+  | 'OpenRouter'
+  | { UserKey: { provider: string; api_key: string } };
+
+export interface LlmRequest {
+  prompt: string;
+  model: string;
+  max_tokens: number;
+  temperature: number;
+  system_prompt?: string;
+  user_id: string;
+}
+
+export interface LlmResponse {
+  content: string;
+  tokens_used: number;
+  provider: string;
+  model: string;
+  finish_reason: string;
+  cached: boolean;
+}
+
+export interface ProviderConfig {
+  name: string;
+  base_url: string;
+  free_tier_rpm: number;
+  free_tier_tpm: number;
+  default_model: string;
+  supported_models: string[];
+}
+
+// ==============================================================================
+// Orchestration Utility Functions
+// ==============================================================================
+
+export const formatTaskStatus = (status: TaskStatus): string => {
+  return status;
+};
+
+export const formatPeerMessageType = (type: PeerMessageType): string => {
+  return type;
+};
+
+export const formatAgentRole = (role: AgentRole): string => {
+  return role;
+};
+
+export const calculateProgressPercentage = (
+  currentIteration: number,
+  maxIterations: number,
+  qualityScore: number,
+  qualityThreshold: number
+): number => {
+  const iterationProgress = (currentIteration / maxIterations) * 50;
+  const qualityProgress = (qualityScore / qualityThreshold) * 50;
+  return Math.min(iterationProgress + qualityProgress, 100);
+};
+
+export const formatDuration = (durationMs: bigint): string => {
+  const ms = Number(durationMs);
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  if (ms < 3600000) return `${(ms / 60000).toFixed(1)}min`;
+  return `${(ms / 3600000).toFixed(1)}h`;
+};
+
+export const formatTimestamp = (timestamp: bigint): string => {
+  const date = new Date(Number(timestamp) / 1_000_000);
+  return date.toLocaleString();
+};

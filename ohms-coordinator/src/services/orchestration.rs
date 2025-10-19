@@ -138,14 +138,7 @@ impl OrchestrationService {
         let plan = Self::queen_plan_iteration(&instructions, iteration_num).await?;
 
         let worker_executions = Self::workers_execute_plan(&plan, &worker_ids)
-            .await
-            .map_err(|err| {
-                if worker_ids.is_empty() {
-                    "No workers assigned. Call assign_workers first.".to_string()
-                } else {
-                    err
-                }
-            })?;
+            .await?;
 
         let peer_comms = Self::enable_peer_collaboration(&worker_executions).await?;
 

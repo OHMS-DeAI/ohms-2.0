@@ -131,12 +131,14 @@ impl Default for SwarmPolicy {
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct CoordinatorConfig {
     pub swarm: SwarmPolicy,
+    pub groq_api_key: Option<String>,
 }
 
 impl Default for CoordinatorConfig {
     fn default() -> Self {
         Self {
             swarm: SwarmPolicy::default(),
+            groq_api_key: None,
         }
     }
 }

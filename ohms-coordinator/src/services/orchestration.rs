@@ -8,6 +8,11 @@ use std::collections::HashMap;
 pub struct OrchestrationService;
 
 impl OrchestrationService {
+    fn groq_api_key() -> Result<String, String> {
+        with_state(|state| state.config.groq_api_key.clone())
+            .ok_or_else(|| "Groq API key is not configured".to_string())
+    }
+
     /// Create a new orchestration task
     pub fn create_task(user_id: String, instructions: String) -> Result<OrchestrationTask, String> {
         let now = time();
@@ -196,9 +201,8 @@ impl OrchestrationService {
             user_id: "queen".to_string(),
         };
 
-        // Use Groq API key (hardcoded for local testing)
-        let api_key = Some("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".to_string());
-        
+        let api_key = Some(Self::groq_api_key()?);
+
         let response = HttpOutcallService::make_llm_call(
             &request,
             &LlmProvider::Groq,
@@ -290,9 +294,8 @@ impl OrchestrationService {
             user_id: worker_id.to_string(),
         };
 
-        // Use Groq API key (hardcoded for local testing)
-        let api_key = Some("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".to_string());
-        
+        let api_key = Some(Self::groq_api_key()?);
+
         let response = HttpOutcallService::make_llm_call(
             &request,
             &LlmProvider::Groq,
@@ -375,9 +378,8 @@ impl OrchestrationService {
             user_id: "queen".to_string(),
         };
 
-        // Use Groq API key (hardcoded for local testing)
-        let api_key = Some("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".to_string());
-        
+        let api_key = Some(Self::groq_api_key()?);
+
         let response = HttpOutcallService::make_llm_call(
             &request,
             &LlmProvider::Groq,
@@ -446,8 +448,13 @@ impl OrchestrationService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::orchestration::*;
-    
+
+    fn reset_groq_key() {
+        with_state_mut(|state| {
+            state.config.groq_api_key = None;
+        });
+    }
+
     #[test]
     fn test_task_creation() {
         let task = OrchestrationTask::new(
@@ -518,6 +525,27 @@ mod tests {
         assert!(subtasks.len() >= 1);
         // If parsing doesn't work perfectly, at least verify we get some subtasks
         assert!(subtasks[0].description.contains("Create") || subtasks[0].description.len() > 0);
+    }
+
+    #[test]
+    fn test_groq_api_key_missing_returns_error() {
+        reset_groq_key();
+
+        let result = OrchestrationService::groq_api_key();
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_groq_api_key_present_returns_value() {
+        with_state_mut(|state| {
+            state.config.groq_api_key = Some("test-key".to_string());
+        });
+
+        let key = OrchestrationService::groq_api_key().unwrap();
+        assert_eq!(key, "test-key");
+
+        reset_groq_key();
     }
 }
 

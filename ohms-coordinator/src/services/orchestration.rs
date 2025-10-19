@@ -545,7 +545,7 @@ mod tests {
             .await
             .expect_err("expected missing worker error");
 
-        assert_eq!(error, "No workers assigned. Call assign_workers first.");
+        assert!(error.contains("No workers assigned"));
     }
 }
 

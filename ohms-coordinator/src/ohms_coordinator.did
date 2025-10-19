@@ -158,6 +158,7 @@ type Result_15 = variant { Ok : vec InstructionRequest; Err : text };
 type Result_16 = variant { Ok : vec OrchestrationTask; Err : text };
 type Result_17 = variant { Ok : RouteResponse; Err : text };
 type Result_18 = variant { Ok : QuotaValidation; Err : text };
+type Result_19 = variant { Ok : opt text; Err : text };
 type Result_2 = variant { Ok : OrchestrationTask; Err : text };
 type Result_3 = variant { Ok : AgentRegistration; Err : text };
 type Result_4 = variant { Ok : AgentCreationResult; Err : text };
@@ -263,6 +264,7 @@ service : {
   get_routing_stats : (opt text) -> (Result_10) query;
   get_subscription_tier_info : () -> (Result_11) query;
   get_swarm_policy : () -> (SwarmPolicy) query;
+  get_groq_api_key : () -> (Result_19) query;
   // Get system health (public endpoint for monitoring)
   get_system_health : () -> (SystemHealth) query;
   get_user_quota_status : () -> (Result_12);
@@ -279,6 +281,7 @@ service : {
   register_agent : (AgentRegistration) -> (Result_1);
   route_best_result : (RouteRequest, nat32, nat64) -> (Result_17);
   route_request : (RouteRequest) -> (Result_17);
+  set_groq_api_key : (opt text) -> (Result);
   set_swarm_policy : (SwarmPolicy) -> (Result);
   update_agent_health : (text, float32) -> (Result);
   update_agent_status : (text, text) -> (Result);

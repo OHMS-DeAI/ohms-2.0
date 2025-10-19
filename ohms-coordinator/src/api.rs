@@ -251,6 +251,21 @@ fn get_swarm_policy() -> SwarmPolicy {
 }
 
 #[update]
+async fn set_groq_api_key(api_key: Option<String>) -> Result<(), String> {
+    Guards::require_caller_authenticated()?;
+    with_state_mut(|s| {
+        s.config.groq_api_key = api_key;
+    });
+    Ok(())
+}
+
+#[query]
+fn get_groq_api_key() -> Result<Option<String>, String> {
+    Guards::require_caller_authenticated()?;
+    Ok(with_state(|s| s.config.groq_api_key.clone()))
+}
+
+#[update]
 async fn route_best_result(
     request: RouteRequest,
     top_k: u32,
@@ -482,13 +497,13 @@ async fn validate_token_usage_quota(tokens: u64) -> Result<QuotaValidation, Stri
 async fn create_orchestration_task(instructions: String) -> Result<OrchestrationTask, String> {
     Guards::require_caller_authenticated()?;
     let user_id = ic_cdk::api::caller().to_string();
-    
+
     let task = OrchestrationService::create_task(user_id.clone(), instructions)?;
-    
+
     let task_id = task.task_id.clone();
     OrchestrationService::promote_queen(&task_id)?;
     OrchestrationService::assign_workers(&task_id, 3)?;
-    
+
     Ok(task)
 }
 
@@ -525,7 +540,7 @@ fn cancel_orchestration_task(task_id: String) -> Result<(), String> {
 fn list_orchestration_tasks() -> Result<Vec<OrchestrationTask>, String> {
     Guards::require_caller_authenticated()?;
     let user_id = ic_cdk::api::caller().to_string();
-    
+
     let tasks = with_state(|state| {
         state.orchestration_tasks
             .values()
@@ -533,7 +548,7 @@ fn list_orchestration_tasks() -> Result<Vec<OrchestrationTask>, String> {
             .cloned()
             .collect::<Vec<_>>()
     });
-    
+
     Ok(tasks)
 }
 
@@ -542,13 +557,13 @@ fn list_orchestration_tasks() -> Result<Vec<OrchestrationTask>, String> {
 fn get_system_health() -> SystemHealth {
     use ohms_shared::ComponentHealth;
     use std::collections::HashMap;
-    
+
     with_state(|state| {
         let mut metrics = HashMap::new();
         metrics.insert("total_agents".to_string(), state.agents.len().to_string());
         metrics.insert("total_models".to_string(), state.models.len().to_string());
         metrics.insert("orchestration_tasks".to_string(), state.orchestration_tasks.len().to_string());
-        
+
         SystemHealth {
             canister_id: ic_cdk::api::id(),
             status: ComponentHealth::Healthy,

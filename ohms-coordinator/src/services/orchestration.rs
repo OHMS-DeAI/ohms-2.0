@@ -137,7 +137,15 @@ impl OrchestrationService {
 
         let plan = Self::queen_plan_iteration(&instructions, iteration_num).await?;
 
-        let worker_executions = Self::workers_execute_plan(&plan, &worker_ids).await?;
+        let worker_executions = Self::workers_execute_plan(&plan, &worker_ids)
+            .await
+            .map_err(|err| {
+                if worker_ids.is_empty() {
+                    "No workers assigned. Call assign_workers first.".to_string()
+                } else {
+                    err
+                }
+            })?;
 
         let peer_comms = Self::enable_peer_collaboration(&worker_executions).await?;
 
@@ -259,6 +267,10 @@ impl OrchestrationService {
         plan: &ExecutionPlan,
         worker_ids: &[String],
     ) -> Result<Vec<WorkerExecution>, String> {
+        if worker_ids.is_empty() {
+            return Err("No workers assigned. Call assign_workers first.".to_string());
+        }
+
         let mut executions = Vec::new();
 
         for (idx, subtask) in plan.subtasks.iter().enumerate() {
@@ -446,8 +458,7 @@ impl OrchestrationService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::orchestration::*;
-    
+
     #[test]
     fn test_task_creation() {
         let task = OrchestrationTask::new(
@@ -511,13 +522,37 @@ mod tests {
     #[test]
     fn test_parse_plan_into_subtasks() {
         let plan = "1. Create database schema\n2. Implement authentication\n3. Build user interface";
-        
+
         let subtasks = OrchestrationService::parse_plan_into_subtasks(plan).unwrap();
-        
+
         // The parser should extract at least the tasks
         assert!(subtasks.len() >= 1);
         // If parsing doesn't work perfectly, at least verify we get some subtasks
         assert!(subtasks[0].description.contains("Create") || subtasks[0].description.len() > 0);
+    }
+
+    #[tokio::test]
+    async fn workers_execute_plan_returns_error_when_no_workers_assigned() {
+        let plan = ExecutionPlan {
+            strategy: "Test plan".to_string(),
+            subtasks: vec![Subtask {
+                subtask_id: "subtask_1".to_string(),
+                description: "Test subtask".to_string(),
+                assigned_to: None,
+                dependencies: vec![],
+                priority: 1,
+            }],
+            estimated_duration_ms: 0,
+            success_criteria: vec![],
+        };
+
+        let worker_ids: Vec<String> = Vec::new();
+
+        let error = OrchestrationService::workers_execute_plan(&plan, &worker_ids)
+            .await
+            .expect_err("expected missing worker error");
+
+        assert_eq!(error, "No workers assigned. Call assign_workers first.");
     }
 }
 

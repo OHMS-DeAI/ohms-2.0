@@ -8,7 +8,16 @@ use std::collections::HashMap;
 pub struct OrchestrationService;
 
 impl OrchestrationService {
+    /// Checks if the caller is authorized to access admin secrets.
+    fn is_admin_caller() -> bool {
+        // TODO: Implement actual admin authentication logic.
+        false
+    }
+
     fn groq_api_key() -> Result<String, String> {
+        if !Self::is_admin_caller() {
+            return Err("Unauthorized access to Groq API key".to_string());
+        }
         with_state(|state| state.config.groq_api_key.clone())
             .ok_or_else(|| "Groq API key is not configured".to_string())
     }

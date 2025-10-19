@@ -61,10 +61,36 @@ export type { CandidAgentCreationRequest, CandidAgentCreationResult, CandidInfer
 
 export const host = RESOLVED_HOST
 
-export const agent = new HttpAgent({ host })
+// Create HTTP agent with error handling for CacheStorage issues
+export const agent = (() => {
+  try {
+    return new HttpAgent({
+      host,
+      // Disable features that might cause CacheStorage issues
+      disableCaching: true,
+      fetchOptions: {
+        cache: 'no-store'
+      }
+    })
+  } catch (error) {
+    // Fallback configuration if caching features cause issues
+    console.warn('Failed to create agent with caching disabled, trying fallback', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+    return new HttpAgent({ host })
+  }
+})()
+
 if (NETWORK !== 'ic') {
-  agent.fetchRootKey().catch(() => {
-    /* Swallow errors for local development */
+  agent.fetchRootKey().catch((error) => {
+    // Silently handle fetchRootKey errors - often caused by browser extensions blocking the request
+    // This is not critical for local development functionality
+    if (error?.message?.includes('ERR_BLOCKED_BY_CLIENT') || error?.message?.includes('UserInterrupt')) {
+      // Browser extension blocked the request - ignore silently
+      return
+    }
+    // Other errors can also be ignored for local dev
+    return
   })
 }
 

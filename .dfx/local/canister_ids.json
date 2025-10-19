@@ -1,23 +1,20 @@
 {
   "__Candid_UI": {
-    "local": "u6s2n-gx777-77774-qaaba-cai"
-  },
-  "ohms_agent": {
-    "local": "uzt4z-lp777-77774-qaabq-cai"
-  },
-  "ohms_coordinator": {
-    "local": "uxrrr-q7777-77774-qaaaq-cai"
-  },
-  "ohms_econ": {
-    "local": "umunu-kh777-77774-qaaca-cai"
-  },
-  "ohms_model": {
-    "local": "ulvla-h7777-77774-qaacq-cai"
-  },
-  "ohms_ui": {
     "local": "ucwa4-rx777-77774-qaada-cai"
   },
-  "ohms_website": {
-    "local": "ufxgi-4p777-77774-qaadq-cai"
+  "ohms_agent": {
+    "local": "uxrrr-q7777-77774-qaaaq-cai"
+  },
+  "ohms_coordinator": {
+    "local": "u6s2n-gx777-77774-qaaba-cai"
+  },
+  "ohms_econ": {
+    "local": "uzt4z-lp777-77774-qaabq-cai"
+  },
+  "ohms_model": {
+    "local": "umunu-kh777-77774-qaaca-cai"
+  },
+  "ohms_ui": {
+    "local": "ulvla-h7777-77774-qaacq-cai"
   }
 }

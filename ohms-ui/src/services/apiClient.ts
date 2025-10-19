@@ -124,12 +124,23 @@ export class ApiClient {
     this.agent = agent
     this.identity = identity || null
 
-    // Fetch root key for local development
+    // Fetch root key for local development with enhanced error handling
     if (process.env.NODE_ENV === 'development' || window.location.hostname === 'localhost') {
       try {
         await agent.fetchRootKey()
-      } catch (error) {
-        // Removed console log
+      } catch (error: any) {
+        // Handle fetchRootKey errors that are commonly blocked by browser extensions
+        const errorMessage = error?.message || error?.toString() || ''
+        if (errorMessage.includes('ERR_BLOCKED_BY_CLIENT') ||
+            errorMessage.includes('UserInterrupt') ||
+            errorMessage.includes('userinterrupt') ||
+            error?.name === 'UserInterrupt') {
+          // Browser extension blocked the request - this is expected in development
+          // Continue without fetchRootKey for local development
+          return
+        }
+        // Other fetchRootKey errors - also continue for local development
+        return
       }
     }
   }
@@ -139,25 +150,19 @@ export class ApiClient {
     this.endpoints = { ...this.endpoints, ...endpoints }
   }
 
-  // Load real canister IDs from canister_ids.json files
+  // Load real canister IDs from dfx environment variables
   private loadRealCanisterIds(): CanisterEndpoints {
-    // Default fallback canister IDs
-    const defaultIds = {
-      ohms_model: '3aes4-xyaaa-aaaal-qsryq-cai',
-      ohms_agent: 'gavyi-uyaaa-aaaaa-qbu7q-cai',
-      ohms_coordinator: 'xp6tn-piaaa-aaaah-qqe4q-cai',
-      ohms_econ: 'tetse-piaaa-aaaao-qkeyq-cai',
-      dfinity_llm: 'w36hm-eqaaa-aaaal-qr76a-cai'
-    }
+    // Import dynamic canister configuration
+    const { getCanisters } = require('../config/canisters')
+    const canisterIds = getCanisters()
 
-    // Try to load from canister_ids.json files
-    try {
-      // For now, use the hardcoded real IDs from the canister_ids.json files
-      // In production, this would read from the actual canister_ids.json files
-      return defaultIds
-    } catch (error) {
-      // Removed console log
-      return defaultIds
+    // Use dynamically resolved canister IDs from dfx
+    return {
+      ohms_model: canisterIds.ohms_model,
+      ohms_agent: canisterIds.ohms_agent,
+      ohms_coordinator: canisterIds.ohms_coordinator,
+      ohms_econ: canisterIds.ohms_econ,
+      dfinity_llm: canisterIds.ohms_agent // Use agent canister for LLM inference
     }
   }
 
@@ -424,6 +429,17 @@ export class ApiClient {
         code: 'SERVICE_UNAVAILABLE',
         message: 'Service temporarily unavailable - please try again later',
         retryable: true
+      }
+    }
+
+    // UserInterrupt errors (common with browser extensions blocking fetchRootKey)
+    if (errorMessage.includes('userinterrupt') ||
+        errorMessage.includes('UserInterrupt') ||
+        error?.name === 'UserInterrupt') {
+      return {
+        code: 'USER_INTERRUPT',
+        message: 'Request interrupted - often caused by browser extensions blocking local replica requests',
+        retryable: false
       }
     }
 

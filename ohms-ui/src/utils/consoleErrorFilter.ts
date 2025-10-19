@@ -29,6 +29,21 @@ const EXTENSION_ERROR_PATTERNS: ErrorPattern[] = [
     pattern: /GET.*localhost:5000.*net::ERR_CONNECTION_REFUSED/i,
     description: 'Network requests to localhost by extension',
     severity: 'suppress'
+  },
+  {
+    pattern: /localhost:4943\/api\/v2\/status.*net::ERR_BLOCKED_BY_CLIENT/i,
+    description: 'IC replica API status endpoint blocked by browser extensions',
+    severity: 'suppress'
+  },
+  {
+    pattern: /userinterrupt|UserInterrupt/i,
+    description: 'Internet Computer agent user interruption errors',
+    severity: 'suppress'
+  },
+  {
+    pattern: /net::ERR_BLOCKED_BY_CLIENT.*api\/v2\/status/i,
+    description: 'Browser extension blocking IC API status calls',
+    severity: 'suppress'
   }
 ]
 

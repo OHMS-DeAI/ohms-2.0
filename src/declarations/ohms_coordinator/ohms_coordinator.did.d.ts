@@ -311,6 +311,10 @@ export interface _SERVICE {
   'get_routing_stats' : ActorMethod<[[] | [string]], Result_10>,
   'get_subscription_tier_info' : ActorMethod<[], Result_11>,
   'get_swarm_policy' : ActorMethod<[], SwarmPolicy>,
+  /**
+   * Get system health (public endpoint for monitoring)
+   */
+  'get_system_health' : ActorMethod<[], SystemHealth>,
   'get_user_quota_status' : ActorMethod<[], Result_12>,
   'health' : ActorMethod<[], SystemHealth>,
   /**

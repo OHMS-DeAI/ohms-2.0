@@ -1,5 +1,4 @@
 use ic_cdk::api::time;
-use ohms_shared::llm_client::{LlmProvider, LlmRequest, LlmResponse};
 use crate::services::with_state_mut;
 
 pub struct CollaborationService;
@@ -76,7 +75,7 @@ impl CollaborationService {
     pub fn record_peer_message(
         from_agent: &str,
         to_agent: &str,
-        message: &str,
+        _message: &str,
     ) -> Result<(), String> {
         with_state_mut(|state| {
             if !state.agents.contains_key(from_agent) {

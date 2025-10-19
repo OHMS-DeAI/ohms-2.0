@@ -67,8 +67,29 @@ export class DirectLlmService {
   private actor: any
 
   constructor(agent?: HttpAgent) {
+    // Create HTTP agent with error handling for CacheStorage issues
+    let httpAgent = agent
+    if (!httpAgent) {
+      try {
+        httpAgent = new HttpAgent({
+          host: 'https://ic0.app',
+          // Disable features that might cause CacheStorage issues
+          disableCaching: true,
+          fetchOptions: {
+            cache: 'no-store'
+          }
+        })
+      } catch (error) {
+        // Fallback configuration if caching features cause issues
+        console.warn('Failed to create agent with caching disabled, trying fallback', {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+        httpAgent = new HttpAgent({ host: 'https://ic0.app' })
+      }
+    }
+
     this.actor = Actor.createActor(agentCanisterIdl, {
-      agent: agent || new HttpAgent({ host: 'https://ic0.app' }),
+      agent: httpAgent,
       canisterId: getAgentCanisterId(),
     })
   }

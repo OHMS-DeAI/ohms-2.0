@@ -73,6 +73,16 @@ type InstructionRequest = record {
   created_at : nat64;
   instructions : text;
 };
+type IterationRecord = record {
+  queen_synthesis : text;
+  queen_plan : text;
+  quality_score : float32;
+  peer_communications : vec PeerMessage;
+  timestamp : nat64;
+  iteration_num : nat32;
+  worker_executions : vec WorkerExecution;
+  duration_ms : nat64;
+};
 type ModelManifest = record {
   metadata : vec record { text; text };
   activated_at : opt nat64;
@@ -88,6 +98,30 @@ type ModelManifest = record {
 };
 type ModelState = variant { Active; Deprecated; Pending };
 type OrchestrationMode = variant { Adaptive; Parallel; Sequential };
+type OrchestrationTask = record {
+  status : TaskStatus;
+  task_id : text;
+  worker_agents : vec text;
+  quality_threshold : float32;
+  error_message : opt text;
+  quality_score : float32;
+  max_iterations : nat32;
+  iterations : vec IterationRecord;
+  created_at : nat64;
+  instructions : text;
+  user_id : text;
+  completed_at : opt nat64;
+  queen_agent_id : opt text;
+};
+type PeerMessage = record {
+  to_agent : text;
+  content : text;
+  from_agent : text;
+  timestamp : nat64;
+  message_type : PeerMessageType;
+  message_id : text;
+};
+type PeerMessageType = variant { Question; Error; Status; Suggestion; Answer };
 type QuantizationFormat = variant { NOVAQ; GGUF; Custom : text };
 type QuantizedArtifactMetadata = record {
   bits_per_weight : opt float32;
@@ -113,21 +147,25 @@ type QuotaValidation = record {
   remaining_quota : opt QuotaRemaining;
   reason : opt text;
 };
-type Result = variant { Ok : text; Err : text };
-type Result_1 = variant { Ok : AgentRegistration; Err : text };
-type Result_10 = variant { Ok : vec AgentRegistration; Err : text };
-type Result_11 = variant { Ok : vec InstructionRequest; Err : text };
-type Result_12 = variant { Ok; Err : text };
-type Result_13 = variant { Ok : RouteResponse; Err : text };
-type Result_14 = variant { Ok : QuotaValidation; Err : text };
-type Result_2 = variant { Ok : AgentCreationResult; Err : text };
-type Result_3 = variant { Ok : AgentSpawningMetrics; Err : text };
-type Result_4 = variant { Ok : vec CoordinationNetworkInfo; Err : text };
-type Result_5 = variant { Ok : EconHealth; Err : text };
-type Result_6 = variant { Ok : InstructionAnalysisResult; Err : text };
-type Result_7 = variant { Ok : vec RoutingStats; Err : text };
-type Result_8 = variant { Ok : SubscriptionTierInfo; Err : text };
-type Result_9 = variant { Ok : QuotaCheckResult; Err : text };
+type Result = variant { Ok; Err : text };
+type Result_1 = variant { Ok : text; Err : text };
+type Result_10 = variant { Ok : vec RoutingStats; Err : text };
+type Result_11 = variant { Ok : SubscriptionTierInfo; Err : text };
+type Result_12 = variant { Ok : QuotaCheckResult; Err : text };
+type Result_13 = variant { Ok : IterationRecord; Err : text };
+type Result_14 = variant { Ok : vec AgentRegistration; Err : text };
+type Result_15 = variant { Ok : vec InstructionRequest; Err : text };
+type Result_16 = variant { Ok : vec OrchestrationTask; Err : text };
+type Result_17 = variant { Ok : RouteResponse; Err : text };
+type Result_18 = variant { Ok : QuotaValidation; Err : text };
+type Result_2 = variant { Ok : OrchestrationTask; Err : text };
+type Result_3 = variant { Ok : AgentRegistration; Err : text };
+type Result_4 = variant { Ok : AgentCreationResult; Err : text };
+type Result_5 = variant { Ok : AgentSpawningMetrics; Err : text };
+type Result_6 = variant { Ok : vec CoordinationNetworkInfo; Err : text };
+type Result_7 = variant { Ok : EconHealth; Err : text };
+type Result_8 = variant { Ok : InstructionAnalysisResult; Err : text };
+type Result_9 = variant { Ok : TaskProgress; Err : text };
 type RouteRequest = record {
   request_id : text;
   requester : text;
@@ -175,30 +213,75 @@ type SystemHealth = record {
   uptime_seconds : nat64;
   last_update : nat64;
 };
+type TaskProgress = record {
+  status : TaskStatus;
+  progress_percentage : float32;
+  active_workers : nat32;
+  task_id : text;
+  total_tokens_used : nat32;
+  quality_threshold : float32;
+  estimated_completion_ms : opt nat64;
+  quality_score : float32;
+  max_iterations : nat32;
+  queen_agent : opt text;
+  current_iteration : nat32;
+};
+type TaskStatus = variant {
+  Failed;
+  Executing;
+  Reviewing;
+  Cancelled;
+  Planning;
+  Created;
+  Completed;
+};
+type WorkerExecution = record {
+  result : text;
+  error_message : opt text;
+  tokens_used : nat32;
+  agent_id : text;
+  execution_time_ms : nat64;
+  success : bool;
+  assigned_subtask : text;
+};
 service : {
-  create_agents_from_instructions : (text, opt nat32) -> (Result);
-  get_agent : (text) -> (Result_1) query;
-  get_agent_creation_status : (text) -> (Result_2) query;
-  get_agent_spawning_metrics : () -> (Result_3) query;
-  get_coordination_networks : () -> (Result_4) query;
-  get_economics_health : () -> (Result_5);
-  get_instruction_analysis : (text) -> (Result_6) query;
-  get_routing_stats : (opt text) -> (Result_7) query;
-  get_subscription_tier_info : () -> (Result_8) query;
+  // Cancel orchestration task
+  cancel_orchestration_task : (text) -> (Result);
+  create_agents_from_instructions : (text, opt nat32) -> (Result_1);
+  // Create orchestration task
+  create_orchestration_task : (text) -> (Result_2);
+  get_agent : (text) -> (Result_3) query;
+  get_agent_creation_status : (text) -> (Result_4) query;
+  get_agent_spawning_metrics : () -> (Result_5) query;
+  get_coordination_networks : () -> (Result_6) query;
+  get_economics_health : () -> (Result_7);
+  get_instruction_analysis : (text) -> (Result_8) query;
+  // Get task progress
+  get_orchestration_task_progress : (text) -> (Result_9) query;
+  // Get task status
+  get_orchestration_task_status : (text) -> (Result_2) query;
+  get_routing_stats : (opt text) -> (Result_10) query;
+  get_subscription_tier_info : () -> (Result_11) query;
   get_swarm_policy : () -> (SwarmPolicy) query;
-  get_user_quota_status : () -> (Result_9);
+  // Get system health (public endpoint for monitoring)
+  get_system_health : () -> (SystemHealth) query;
+  get_user_quota_status : () -> (Result_12);
   health : () -> (SystemHealth) query;
-  list_agents : () -> (Result_10) query;
-  list_instruction_requests : () -> (Result_11) query;
-  list_user_agents : () -> (Result_10) query;
-  notify_model_deletion : (text) -> (Result_12);
-  notify_model_upload : (ModelManifest) -> (Result_12);
-  register_agent : (AgentRegistration) -> (Result);
-  route_best_result : (RouteRequest, nat32, nat64) -> (Result_13);
-  route_request : (RouteRequest) -> (Result_13);
-  set_swarm_policy : (SwarmPolicy) -> (Result_12);
-  update_agent_health : (text, float32) -> (Result_12);
-  update_agent_status : (text, text) -> (Result_12);
-  upgrade_subscription_tier : (text) -> (Result_12);
-  validate_token_usage_quota : (nat64) -> (Result_14);
+  // Execute one iteration of the task
+  iterate_orchestration_task : (text) -> (Result_13);
+  list_agents : () -> (Result_14) query;
+  list_instruction_requests : () -> (Result_15) query;
+  // List user's orchestration tasks
+  list_orchestration_tasks : () -> (Result_16) query;
+  list_user_agents : () -> (Result_14) query;
+  notify_model_deletion : (text) -> (Result);
+  notify_model_upload : (ModelManifest) -> (Result);
+  register_agent : (AgentRegistration) -> (Result_1);
+  route_best_result : (RouteRequest, nat32, nat64) -> (Result_17);
+  route_request : (RouteRequest) -> (Result_17);
+  set_swarm_policy : (SwarmPolicy) -> (Result);
+  update_agent_health : (text, float32) -> (Result);
+  update_agent_status : (text, text) -> (Result);
+  upgrade_subscription_tier : (text) -> (Result);
+  validate_token_usage_quota : (nat64) -> (Result_18);
 }

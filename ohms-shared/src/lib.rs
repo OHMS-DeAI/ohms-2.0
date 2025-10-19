@@ -293,12 +293,9 @@ impl std::fmt::Display for OHMSError {
 impl std::error::Error for OHMSError {}
 
 // Time utilities
+// Use IC's time API which returns nanoseconds since Unix epoch
 pub fn current_time_nanos() -> u64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos() as u64
+    ic_cdk::api::time()
 }
 
 pub fn current_time_millis() -> u64 {

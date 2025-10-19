@@ -526,7 +526,7 @@ pub fn get_account_info(account: Principal) -> Option<TokenAccount> {
 #[candid_method(update)]
 pub async fn mint_tokens(to: Principal, amount: u64) -> OHMSResult<()> {
     // Only admin can mint (simplified authorization)
-    let caller_id = caller();
+    let _caller_id = caller();
 
     // In a real system, check if caller is authorized minter
     // For now, any canister can mint (this would be restricted)

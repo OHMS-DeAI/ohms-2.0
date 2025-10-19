@@ -22,7 +22,7 @@
       "socket_path": null
     },
     "canister_http_adapter": {
-      "enabled": false,
+      "enabled": true,
       "socket_path": null
     },
     "log_level": "error",

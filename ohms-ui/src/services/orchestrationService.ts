@@ -1,6 +1,8 @@
 import { Actor, HttpAgent } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
 import { idlFactory } from '../declarations/ohms_coordinator';
+import type { _SERVICE } from '../declarations/ohms_coordinator/ohms_coordinator.did.d';
+import { getCanisterIdsFromEnv } from '../config/network';
 
 export interface OrchestrationTask {
   task_id: string;
@@ -78,21 +80,23 @@ export class OrchestrationService {
   private coordinatorCanisterId: string;
 
   constructor(coordinatorCanisterId?: string) {
+    // Get canister ID from constructor, env var, or the network config default
     this.coordinatorCanisterId = coordinatorCanisterId || 
-      process.env.NEXT_PUBLIC_OHMS_COORDINATOR_CANISTER_ID || 
-      'xp6tn-piaaa-aaaah-qqe4q-cai';
+      import.meta.env.VITE_OHMS_COORDINATOR_CANISTER_ID ||
+      process.env.CANISTER_ID_OHMS_COORDINATOR ||
+      getCanisterIdsFromEnv().ohms_coordinator;
   }
 
   async initialize(agent: HttpAgent): Promise<void> {
     this.agent = agent;
   }
 
-  private getActor() {
+  private getActor(): _SERVICE {
     if (!this.agent) {
       throw new Error('OrchestrationService not initialized. Call initialize() first.');
     }
 
-    return Actor.createActor(idlFactory, {
+    return Actor.createActor<_SERVICE>(idlFactory, {
       agent: this.agent,
       canisterId: Principal.fromText(this.coordinatorCanisterId),
     });

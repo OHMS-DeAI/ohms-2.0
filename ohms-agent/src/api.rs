@@ -6,7 +6,7 @@ use crate::domain::{
 use crate::infra::Guards;
 use crate::services::{
     with_state, AgentFactory, BindingService, CacheService, InferenceService, InstructionAnalyzer,
-    MemoryService, ModelRepoClient,
+    MemoryService,
 };
 use ic_cdk_macros::*;
 

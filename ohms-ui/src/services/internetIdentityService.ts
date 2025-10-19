@@ -3,6 +3,7 @@ import { HttpAgent, Certificate } from '@dfinity/agent'
 import { Principal } from '@dfinity/principal'
 import { AuthClient } from '@dfinity/auth-client'
 import { logger } from '../utils/professionalLogger'
+import { NETWORK, HOST } from '../config/network'
 
 /**
  * Internet Identity v2 Configuration
@@ -171,15 +172,53 @@ export class InternetIdentityService {
         // Removed console log
       }
 
-      // Create HTTP agent
-      const agent = await HttpAgent.create({
-        identity,
-        host: this.config.host === 'https://id.ai' ? 'https://ic0.app' : this.config.host
-      })
+      // Create HTTP agent with error handling for CacheStorage issues
+      let agent: HttpAgent
+      try {
+        agent = await HttpAgent.create({
+          identity,
+          host: this.config.host,
+          // Disable features that might cause CacheStorage issues
+          disableCaching: true,
+          fetchOptions: {
+            cache: 'no-store'
+          }
+        })
+      } catch (error) {
+        // Fallback configuration if caching features cause issues
+        logger.warn('Failed to create agent with caching disabled, trying fallback', {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+        agent = await HttpAgent.create({
+          identity,
+          host: this.config.host
+        })
+      }
 
-      // For local development, fetch root key
+      // For local development, fetch root key with enhanced error handling
       if (this.config.host.includes('localhost') || this.config.host.includes('127.0.0.1')) {
-        await agent.fetchRootKey()
+        try {
+          await agent.fetchRootKey()
+        } catch (error: any) {
+          // Handle fetchRootKey errors that are commonly blocked by browser extensions
+          const errorMessage = error?.message || error?.toString() || ''
+          if (errorMessage.includes('ERR_BLOCKED_BY_CLIENT') ||
+              errorMessage.includes('UserInterrupt') ||
+              errorMessage.includes('userinterrupt') ||
+              error?.name === 'UserInterrupt') {
+            // Browser extension blocked the request - this is expected in development
+            logger.warn('fetchRootKey blocked by browser extension, continuing with agent', {
+              error: errorMessage,
+              host: this.config.host
+            })
+          } else {
+            // Other fetchRootKey errors - log but don't fail authentication
+            logger.warn('fetchRootKey failed, continuing with agent', {
+              error: errorMessage,
+              host: this.config.host
+            })
+          }
+        }
       }
 
       // Get user profile with Google account info
@@ -568,14 +607,53 @@ export class InternetIdentityService {
       // Create actor to call II v2 canister
       const { Actor, HttpAgent } = await import('@dfinity/agent')
       
-      const agent = await HttpAgent.create({
-        identity: this.currentIdentity,
-        host: this.config.host === 'https://id.ai' ? 'https://ic0.app' : this.config.host
-      })
+      // Create HTTP agent with error handling for CacheStorage issues
+      let agent: HttpAgent
+      try {
+        agent = await HttpAgent.create({
+          identity: this.currentIdentity,
+          host: this.config.host === 'https://id.ai' ? 'https://ic0.app' : this.config.host,
+          // Disable features that might cause CacheStorage issues
+          disableCaching: true,
+          fetchOptions: {
+            cache: 'no-store'
+          }
+        })
+      } catch (error) {
+        // Fallback configuration if caching features cause issues
+        logger.warn('Failed to create agent with caching disabled, trying fallback', {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+        agent = await HttpAgent.create({
+          identity: this.currentIdentity,
+          host: this.config.host === 'https://id.ai' ? 'https://ic0.app' : this.config.host
+        })
+      }
 
-      // For local development, fetch root key
+      // For local development, fetch root key with enhanced error handling
       if (this.config.host.includes('localhost') || this.config.host.includes('127.0.0.1')) {
-        await agent.fetchRootKey()
+        try {
+          await agent.fetchRootKey()
+        } catch (error: any) {
+          // Handle fetchRootKey errors that are commonly blocked by browser extensions
+          const errorMessage = error?.message || error?.toString() || ''
+          if (errorMessage.includes('ERR_BLOCKED_BY_CLIENT') ||
+              errorMessage.includes('UserInterrupt') ||
+              errorMessage.includes('userinterrupt') ||
+              error?.name === 'UserInterrupt') {
+            // Browser extension blocked the request - this is expected in development
+            logger.warn('fetchRootKey blocked by browser extension, continuing with agent', {
+              error: errorMessage,
+              host: this.config.host
+            })
+          } else {
+            // Other fetchRootKey errors - log but don't fail authentication
+            logger.warn('fetchRootKey failed, continuing with agent', {
+              error: errorMessage,
+              host: this.config.host
+            })
+          }
+        }
       }
 
       // Removed console log
@@ -1456,12 +1534,27 @@ export class InternetIdentityService {
       return null
     }
 
-    const host = this.config.host === 'https://id.ai' ? 'https://ic0.app' : this.config.host
-
-    return new HttpAgent({
-      identity: this.currentIdentity,
-      host
-    })
+    // Use the configured host directly, don't override to ic0.app
+    try {
+      return new HttpAgent({
+        identity: this.currentIdentity,
+        host: this.config.host,
+        // Disable features that might cause CacheStorage issues
+        disableCaching: true,
+        fetchOptions: {
+          cache: 'no-store'
+        }
+      })
+    } catch (error) {
+      // Fallback configuration if caching features cause issues
+      logger.warn('Failed to create agent with caching disabled, trying fallback', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      return new HttpAgent({
+        identity: this.currentIdentity,
+        host: this.config.host
+      })
+    }
   }
 
   /**
@@ -1601,9 +1694,10 @@ export class InternetIdentityService {
  * Environment-based configuration
  */
 const getIIConfig = (): IIv2Config => {
-  const isDevelopment = import.meta.env.DEV
   const canisterId = import.meta.env.VITE_II_CANISTER_ID
-  const host = import.meta.env.VITE_II_HOST || 'https://id.ai'
+
+  // Use the same network detection logic as the rest of the app
+  const host = import.meta.env.VITE_II_HOST || HOST
 
   // Default to II v2 production canister if not specified
   const defaultCanisterId = 'rdmx6-jaaaa-aaaaa-aaadq-cai'
@@ -1612,7 +1706,7 @@ const getIIConfig = (): IIv2Config => {
     canisterId: canisterId || defaultCanisterId,
     host,
     // For local development, use localhost derivation
-    derivationOrigin: isDevelopment ? 'http://localhost:3000' : undefined,
+    derivationOrigin: NETWORK === 'local' ? 'http://localhost:3000' : undefined,
     // 7 days maximum session
     maxTimeToLive: BigInt(7 * 24 * 60 * 60 * 1000 * 1000 * 1000)
   }

@@ -78,6 +78,16 @@ export interface InstructionRequest {
   'created_at' : bigint,
   'instructions' : string,
 }
+export interface IterationRecord {
+  'queen_synthesis' : string,
+  'queen_plan' : string,
+  'quality_score' : number,
+  'peer_communications' : Array<PeerMessage>,
+  'timestamp' : bigint,
+  'iteration_num' : number,
+  'worker_executions' : Array<WorkerExecution>,
+  'duration_ms' : bigint,
+}
 export interface ModelManifest {
   'metadata' : Array<[string, string]>,
   'activated_at' : [] | [bigint],
@@ -97,6 +107,34 @@ export type ModelState = { 'Active' : null } |
 export type OrchestrationMode = { 'Adaptive' : null } |
   { 'Parallel' : null } |
   { 'Sequential' : null };
+export interface OrchestrationTask {
+  'status' : TaskStatus,
+  'task_id' : string,
+  'worker_agents' : Array<string>,
+  'quality_threshold' : number,
+  'error_message' : [] | [string],
+  'quality_score' : number,
+  'max_iterations' : number,
+  'iterations' : Array<IterationRecord>,
+  'created_at' : bigint,
+  'instructions' : string,
+  'user_id' : string,
+  'completed_at' : [] | [bigint],
+  'queen_agent_id' : [] | [string],
+}
+export interface PeerMessage {
+  'to_agent' : string,
+  'content' : string,
+  'from_agent' : string,
+  'timestamp' : bigint,
+  'message_type' : PeerMessageType,
+  'message_id' : string,
+}
+export type PeerMessageType = { 'Question' : null } |
+  { 'Error' : null } |
+  { 'Status' : null } |
+  { 'Suggestion' : null } |
+  { 'Answer' : null };
 export type QuantizationFormat = { 'NOVAQ' : null } |
   { 'GGUF' : null } |
   { 'Custom' : string };
@@ -124,35 +162,43 @@ export interface QuotaValidation {
   'remaining_quota' : [] | [QuotaRemaining],
   'reason' : [] | [string],
 }
-export type Result = { 'Ok' : string } |
+export type Result = { 'Ok' : null } |
   { 'Err' : string };
-export type Result_1 = { 'Ok' : AgentRegistration } |
+export type Result_1 = { 'Ok' : string } |
   { 'Err' : string };
-export type Result_10 = { 'Ok' : Array<AgentRegistration> } |
+export type Result_10 = { 'Ok' : Array<RoutingStats> } |
   { 'Err' : string };
-export type Result_11 = { 'Ok' : Array<InstructionRequest> } |
+export type Result_11 = { 'Ok' : SubscriptionTierInfo } |
   { 'Err' : string };
-export type Result_12 = { 'Ok' : null } |
+export type Result_12 = { 'Ok' : QuotaCheckResult } |
   { 'Err' : string };
-export type Result_13 = { 'Ok' : RouteResponse } |
+export type Result_13 = { 'Ok' : IterationRecord } |
   { 'Err' : string };
-export type Result_14 = { 'Ok' : QuotaValidation } |
+export type Result_14 = { 'Ok' : Array<AgentRegistration> } |
   { 'Err' : string };
-export type Result_2 = { 'Ok' : AgentCreationResult } |
+export type Result_15 = { 'Ok' : Array<InstructionRequest> } |
   { 'Err' : string };
-export type Result_3 = { 'Ok' : AgentSpawningMetrics } |
+export type Result_16 = { 'Ok' : Array<OrchestrationTask> } |
   { 'Err' : string };
-export type Result_4 = { 'Ok' : Array<CoordinationNetworkInfo> } |
+export type Result_17 = { 'Ok' : RouteResponse } |
   { 'Err' : string };
-export type Result_5 = { 'Ok' : EconHealth } |
+export type Result_18 = { 'Ok' : QuotaValidation } |
   { 'Err' : string };
-export type Result_6 = { 'Ok' : InstructionAnalysisResult } |
+export type Result_2 = { 'Ok' : OrchestrationTask } |
   { 'Err' : string };
-export type Result_7 = { 'Ok' : Array<RoutingStats> } |
+export type Result_3 = { 'Ok' : AgentRegistration } |
   { 'Err' : string };
-export type Result_8 = { 'Ok' : SubscriptionTierInfo } |
+export type Result_4 = { 'Ok' : AgentCreationResult } |
   { 'Err' : string };
-export type Result_9 = { 'Ok' : QuotaCheckResult } |
+export type Result_5 = { 'Ok' : AgentSpawningMetrics } |
+  { 'Err' : string };
+export type Result_6 = { 'Ok' : Array<CoordinationNetworkInfo> } |
+  { 'Err' : string };
+export type Result_7 = { 'Ok' : EconHealth } |
+  { 'Err' : string };
+export type Result_8 = { 'Ok' : InstructionAnalysisResult } |
+  { 'Err' : string };
+export type Result_9 = { 'Ok' : TaskProgress } |
   { 'Err' : string };
 export interface RouteRequest {
   'request_id' : string,
@@ -206,35 +252,92 @@ export interface SystemHealth {
   'uptime_seconds' : bigint,
   'last_update' : bigint,
 }
+export interface TaskProgress {
+  'status' : TaskStatus,
+  'progress_percentage' : number,
+  'active_workers' : number,
+  'task_id' : string,
+  'total_tokens_used' : number,
+  'quality_threshold' : number,
+  'estimated_completion_ms' : [] | [bigint],
+  'quality_score' : number,
+  'max_iterations' : number,
+  'queen_agent' : [] | [string],
+  'current_iteration' : number,
+}
+export type TaskStatus = { 'Failed' : null } |
+  { 'Executing' : null } |
+  { 'Reviewing' : null } |
+  { 'Cancelled' : null } |
+  { 'Planning' : null } |
+  { 'Created' : null } |
+  { 'Completed' : null };
+export interface WorkerExecution {
+  'result' : string,
+  'error_message' : [] | [string],
+  'tokens_used' : number,
+  'agent_id' : string,
+  'execution_time_ms' : bigint,
+  'success' : boolean,
+  'assigned_subtask' : string,
+}
 export interface _SERVICE {
+  /**
+   * Cancel orchestration task
+   */
+  'cancel_orchestration_task' : ActorMethod<[string], Result>,
   'create_agents_from_instructions' : ActorMethod<
     [string, [] | [number]],
-    Result
+    Result_1
   >,
-  'get_agent' : ActorMethod<[string], Result_1>,
-  'get_agent_creation_status' : ActorMethod<[string], Result_2>,
-  'get_agent_spawning_metrics' : ActorMethod<[], Result_3>,
-  'get_coordination_networks' : ActorMethod<[], Result_4>,
-  'get_economics_health' : ActorMethod<[], Result_5>,
-  'get_instruction_analysis' : ActorMethod<[string], Result_6>,
-  'get_routing_stats' : ActorMethod<[[] | [string]], Result_7>,
-  'get_subscription_tier_info' : ActorMethod<[], Result_8>,
+  /**
+   * Create orchestration task
+   */
+  'create_orchestration_task' : ActorMethod<[string], Result_2>,
+  'get_agent' : ActorMethod<[string], Result_3>,
+  'get_agent_creation_status' : ActorMethod<[string], Result_4>,
+  'get_agent_spawning_metrics' : ActorMethod<[], Result_5>,
+  'get_coordination_networks' : ActorMethod<[], Result_6>,
+  'get_economics_health' : ActorMethod<[], Result_7>,
+  'get_instruction_analysis' : ActorMethod<[string], Result_8>,
+  /**
+   * Get task progress
+   */
+  'get_orchestration_task_progress' : ActorMethod<[string], Result_9>,
+  /**
+   * Get task status
+   */
+  'get_orchestration_task_status' : ActorMethod<[string], Result_2>,
+  'get_routing_stats' : ActorMethod<[[] | [string]], Result_10>,
+  'get_subscription_tier_info' : ActorMethod<[], Result_11>,
   'get_swarm_policy' : ActorMethod<[], SwarmPolicy>,
-  'get_user_quota_status' : ActorMethod<[], Result_9>,
+  /**
+   * Get system health (public endpoint for monitoring)
+   */
+  'get_system_health' : ActorMethod<[], SystemHealth>,
+  'get_user_quota_status' : ActorMethod<[], Result_12>,
   'health' : ActorMethod<[], SystemHealth>,
-  'list_agents' : ActorMethod<[], Result_10>,
-  'list_instruction_requests' : ActorMethod<[], Result_11>,
-  'list_user_agents' : ActorMethod<[], Result_10>,
-  'notify_model_deletion' : ActorMethod<[string], Result_12>,
-  'notify_model_upload' : ActorMethod<[ModelManifest], Result_12>,
-  'register_agent' : ActorMethod<[AgentRegistration], Result>,
-  'route_best_result' : ActorMethod<[RouteRequest, number, bigint], Result_13>,
-  'route_request' : ActorMethod<[RouteRequest], Result_13>,
-  'set_swarm_policy' : ActorMethod<[SwarmPolicy], Result_12>,
-  'update_agent_health' : ActorMethod<[string, number], Result_12>,
-  'update_agent_status' : ActorMethod<[string, string], Result_12>,
-  'upgrade_subscription_tier' : ActorMethod<[string], Result_12>,
-  'validate_token_usage_quota' : ActorMethod<[bigint], Result_14>,
+  /**
+   * Execute one iteration of the task
+   */
+  'iterate_orchestration_task' : ActorMethod<[string], Result_13>,
+  'list_agents' : ActorMethod<[], Result_14>,
+  'list_instruction_requests' : ActorMethod<[], Result_15>,
+  /**
+   * List user's orchestration tasks
+   */
+  'list_orchestration_tasks' : ActorMethod<[], Result_16>,
+  'list_user_agents' : ActorMethod<[], Result_14>,
+  'notify_model_deletion' : ActorMethod<[string], Result>,
+  'notify_model_upload' : ActorMethod<[ModelManifest], Result>,
+  'register_agent' : ActorMethod<[AgentRegistration], Result_1>,
+  'route_best_result' : ActorMethod<[RouteRequest, number, bigint], Result_17>,
+  'route_request' : ActorMethod<[RouteRequest], Result_17>,
+  'set_swarm_policy' : ActorMethod<[SwarmPolicy], Result>,
+  'update_agent_health' : ActorMethod<[string, number], Result>,
+  'update_agent_status' : ActorMethod<[string, string], Result>,
+  'upgrade_subscription_tier' : ActorMethod<[string], Result>,
+  'validate_token_usage_quota' : ActorMethod<[bigint], Result_18>,
 }
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

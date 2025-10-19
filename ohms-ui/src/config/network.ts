@@ -1,55 +1,34 @@
 /**
- * Centralized network detection for OHMS UI
- * - Determines current network (local vs mainnet)
- * - Exposes the correct boundary node host for canister calls
- * - Honors environment overrides when provided
+ * Network Configuration using dfx environment variables
+ *
+ * This file now uses the proper ICP development pattern where canister IDs
+ * are injected at build time by dfx and consumed dynamically at runtime.
+ *
+ * No hardcoded canister IDs - everything is resolved from dfx build system.
  */
 
-const getRuntimeHostname = (): string | undefined => {
-  if (typeof window === 'undefined') return undefined
-  return window.location?.hostname
-}
-
-const isMainnetHostname = (hostname?: string): boolean => {
-  if (!hostname) return false
-  const h = hostname.toLowerCase()
-  // Covers ic0.app, icp0.io and their raw subdomains
-  return (
-    h.endsWith('.ic0.app') ||
-    h.endsWith('.icp0.io') ||
-    h.endsWith('.raw.ic0.app') ||
-    h.endsWith('.raw.icp0.io')
-  )
-}
+import { getCanisters, getNetwork, getHost, isMainnet, isLocal, isPlayground } from './canisters'
 
 /**
- * Resolve the active network.
- * Priority:
- * 1) Runtime host (served from canister domain -> ic)
- * 2) VITE_DFX_NETWORK or VITE_NETWORK envs
- * 3) Default to 'local'
+ * Get current network from dfx environment
  */
-export const NETWORK: 'ic' | 'local' = (() => {
-  const runtimeHost = getRuntimeHostname()
-  if (isMainnetHostname(runtimeHost)) return 'ic'
-  const envNetwork = (import.meta as any).env?.VITE_DFX_NETWORK || (import.meta as any).env?.VITE_NETWORK
-  if (envNetwork === 'ic') return 'ic'
-  return 'local'
-})()
+export const NETWORK = getNetwork()
 
 /**
- * Boundary host for the current network.
- * Allows override via VITE_HOST_OVERRIDE if needed.
+ * Get boundary node host for current network
  */
-export const HOST: string = (() => {
-  const override = (import.meta as any).env?.VITE_HOST_OVERRIDE as string | undefined
-  if (override) return override
-  return NETWORK === 'ic' ? 'https://ic0.app' : 'http://127.0.0.1:4943'
-})()
+export const HOST = getHost()
 
-export const IS_MAINNET = NETWORK === 'ic'
-export const IS_LOCAL = NETWORK === 'local'
+/**
+ * Network type guards
+ */
+export const IS_MAINNET = isMainnet()
+export const IS_LOCAL = isLocal()
+export const IS_PLAYGROUND = isPlayground()
 
+/**
+ * Canister ID type
+ */
 export type CanisterIds = {
   ohms_model: string
   ohms_agent: string
@@ -58,17 +37,58 @@ export type CanisterIds = {
 }
 
 /**
- * Load canister IDs from environment.
- * For local dev: set in .env.local
- * For mainnet: set in .env.ic and build with it
+ * Get canister IDs dynamically from dfx environment variables
+ * This is the proper ICP way - fully dynamic, no hardcoded values
  */
 export const getCanisterIdsFromEnv = (): CanisterIds => {
-  const env = (import.meta as any).env || {}
-  return {
-    ohms_model: env.VITE_OHMS_MODEL_CANISTER_ID || '',
-    ohms_agent: env.VITE_OHMS_AGENT_CANISTER_ID || '',
-    ohms_coordinator: env.VITE_OHMS_COORDINATOR_CANISTER_ID || '',
-    ohms_econ: env.VITE_OHMS_ECON_CANISTER_ID || '',
+  return getCanisters()
+}
+
+/**
+ * Get a specific canister ID by name
+ */
+export const getCanisterId = (name: keyof CanisterIds): string => {
+  const canisters = getCanisters()
+  return canisters[name]
+}
+
+/**
+ * Runtime network detection based on hostname
+ * This is used for client-side network detection when needed
+ */
+const getRuntimeNetwork = (): string => {
+  if (typeof window === 'undefined') return NETWORK
+
+  const hostname = window.location.hostname.toLowerCase()
+
+  // Mainnet detection
+  if (hostname.endsWith('.ic0.app') ||
+      hostname.endsWith('.icp0.io') && !hostname.includes('-cai.icp0.io')) {
+    return 'ic'
+  }
+
+  // Playground detection (canister URLs)
+  if (hostname.includes('-cai.icp0.io')) {
+    return 'playground'
+  }
+
+  // Default to local
+  return 'local'
+}
+
+/**
+ * Get runtime host based on current network
+ */
+export const getRuntimeHost = (): string => {
+  const runtimeNetwork = getRuntimeNetwork()
+
+  switch (runtimeNetwork) {
+    case 'ic':
+      return 'https://ic0.app'
+    case 'playground':
+      return 'https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.icp0.io'
+    default:
+      return 'http://127.0.0.1:4943'
   }
 }
 

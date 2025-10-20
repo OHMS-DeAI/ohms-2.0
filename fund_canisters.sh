@@ -41,7 +41,7 @@ if [ -d "ohms-ui" ]; then
     OUI_CID=$(dfx canister id ohms_ui --network "$NET")
   else
     pushd ohms-ui >/dev/null
-    dfx canister create ohms_ui --with-cycles 0.2T --network "$NET"
+    dfx canister create ohms_ui --with-cycles 0.6T --network "$NET"
     OUI_CID=$(dfx canister id ohms_ui --network "$NET")
     popd >/dev/null
   fi
@@ -53,7 +53,7 @@ if [ -d "ohms-website" ]; then
     OW_CID=$(dfx canister id ohms_website --network "$NET")
   else
     pushd ohms-website >/dev/null
-    dfx canister create ohms_website --with-cycles 0.3T --network "$NET"
+    dfx canister create ohms_website --with-cycles 0.8T --network "$NET"
     OW_CID=$(dfx canister id ohms_website --network "$NET")
     popd >/dev/null
   fi
@@ -69,4 +69,3 @@ echo "ohms_website     = ${OW_CID:-N/A}"
 
 echo "Ledger balance (remaining):"
 dfx cycles --network "$NET" balance
-

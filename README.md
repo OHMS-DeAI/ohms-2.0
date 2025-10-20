@@ -159,8 +159,8 @@ npm run test:website
 
 ## 📞 Contact & Community
 - **Project Lead**: Dedan Okware – softengdedan@gmail.com
-- **Website**: https://rjeaj-jyaaa-aaaau-abyka-cai.icp0.io/
-- **Platform**: https://xg5yr-zaaaa-aaaah-qqe5a-cai.icp0.io/
+- **Website**: https://weamn-piaaa-aaaah-arlca-cai.icp0.io/
+- **Platform**: https://wrh5a-oaaaa-aaaah-arlbq-cai.icp0.io/
 - **Docs**: https://docs.ohms.ai/
 - **GitHub**: https://github.com/OHMS-DeAI/
 - **Discord**: https://discord.gg/ohms

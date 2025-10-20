@@ -6,9 +6,9 @@
 [![Internet Computer](https://img.shields.io/badge/Internet_Computer-ICP-blue.svg)](https://internetcomputer.org/)
 [![Vite](https://img.shields.io/badge/Vite-5.0+-purple.svg)](https://vitejs.dev/)
 
-**Canister ID:** `xg5yr-zaaaa-aaaah-qqe5a-cai`\
+**Canister ID:** `wrh5a-oaaaa-aaaah-arlbq-cai`\
 **Network:** Internet Computer Mainnet\
-**Direct URL:** https://xg5yr-zaaaa-aaaah-qqe5a-cai.icp0.io/
+**Direct URL:** https://wrh5a-oaaaa-aaaah-arlbq-cai.icp0.io/
 
 The OHMS UI is the revolutionary user interface for the world's first subscription-based autonomous agent platform. This decentralized frontend, deployed entirely on the Internet Computer, provides a seamless experience for users to authenticate, subscribe, and create autonomous AI agents from natural language instructions.
 

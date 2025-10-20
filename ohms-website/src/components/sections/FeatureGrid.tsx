@@ -10,7 +10,7 @@ import {
   Users,
   ArrowRight
 } from 'lucide-react'
-import { FEATURES } from '@/lib/constants'
+import { FEATURES, OHMS_APP_URL } from '@/lib/constants'
 
 const iconMap = {
   brain: Brain,
@@ -89,7 +89,7 @@ export default function FeatureGrid() {
             </p>
             <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
               <button 
-                onClick={() => window.open('https://xg5yr-zaaaa-aaaah-qqe5a-cai.icp0.io/', '_blank')}
+                onClick={() => window.open(OHMS_APP_URL, '_blank')}
                 className="btn-primary gap-3"
               >
                 <span>Launch OHMS Platform</span>

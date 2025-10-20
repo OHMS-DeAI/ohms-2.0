@@ -6,9 +6,9 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.0-cyan.svg)](https://tailwindcss.com/)
 [![Internet Computer](https://img.shields.io/badge/Internet_Computer-ICP-blue.svg)](https://internetcomputer.org/)
 
-**Canister ID:** `rjeaj-jyaaa-aaaau-abyka-cai`\
+**Canister ID:** `weamn-piaaa-aaaah-arlca-cai`\
 **Network:** Internet Computer Mainnet\
-**Direct URL:** https://rjeaj-jyaaa-aaaau-abyka-cai.icp0.io/
+**Direct URL:** https://weamn-piaaa-aaaah-arlca-cai.icp0.io/
 
 The OHMS Website is the stunning marketing and informational platform that introduces the world to the revolutionary OHMS 2.0 autonomous agent ecosystem. Built with cutting-edge web technologies and deployed entirely on the Internet Computer, this website showcases the future of decentralized AI agent creation.
 

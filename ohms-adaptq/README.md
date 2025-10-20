@@ -282,7 +282,7 @@ sequenceDiagram
 ```bash
 # Submit compressed model to OHMS platform
 novaq submit-to-ohms llama3-8b-novaq.bin \
-  --platform-url https://xg5yr-zaaaa-aaaah-qqe5a-cai.icp0.io \
+  --platform-url https://wrh5a-oaaaa-aaaah-arlbq-cai.icp0.io \
   --model-name "LLaMA 3 8B NOVAQ" \
   --description "Optimized LLaMA 3 8B for autonomous agents"
 
@@ -383,7 +383,7 @@ export NOVAQ_CUDA_VISIBLE_DEVICES=0
 
 # OHMS integration
 export OHMS_MODEL_REPO_CANISTER="3aes4-xyaaa-aaaal-qsryq-cai"
-export OHMS_PLATFORM_URL="https://xg5yr-zaaaa-aaaah-qqe5a-cai.icp0.io"
+export OHMS_PLATFORM_URL="https://wrh5a-oaaaa-aaaah-arlbq-cai.icp0.io"
 ```
 
 ### Advanced Configuration

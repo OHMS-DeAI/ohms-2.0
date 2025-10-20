@@ -5,7 +5,7 @@ export const NAVIGATION_LINKS = [
   { name: 'Pricing', href: '/pricing' },
   { name: 'FAQ', href: '/faq' },
   { name: 'Team', href: '/team' },
-  { name: 'App', href: 'https://xg5yr-zaaaa-aaaah-qqe5a-cai.icp0.io/', external: true },
+  { name: 'App', href: 'https://wrh5a-oaaaa-aaaah-arlbq-cai.icp0.io/', external: true },
 ]
 
 export const SOCIAL_LINKS = [
@@ -140,7 +140,7 @@ export const FOOTER_LINKS = {
   ],
 }
 
-export const OHMS_APP_URL = 'https://xg5yr-zaaaa-aaaah-qqe5a-cai.icp0.io/' // OHMS Main Application URL
+export const OHMS_APP_URL = 'https://wrh5a-oaaaa-aaaah-arlbq-cai.icp0.io/' // OHMS Main Application URL
 
 export const METADATA = {
   title: 'OHMS - Revolutionary Autonomous AI Agent Platform | Create Agents from Instructions',
@@ -149,7 +149,7 @@ export const METADATA = {
   author: 'OHMS Team',
   ogImage: '/og-image.jpg',
   siteName: 'OHMS - Autonomous AI Agent Platform',
-  siteUrl: 'https://xg5yr-zaaaa-aaaah-qqe5a-cai.icp0.io/',
+  siteUrl: 'https://weamn-piaaa-aaaah-arlca-cai.icp0.io/',
   type: 'website',
   locale: 'en_US',
 }

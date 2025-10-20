@@ -16,20 +16,20 @@ use ohms_shared::ModelManifest;
 pub mod agent_factory;
 pub mod binding_service;
 pub mod cache_service;
+pub mod collaboration;
 pub mod inference_service;
 pub mod instruction_analyzer;
 pub mod memory_service;
 pub mod model_repo_client;
-pub mod collaboration;
 
 pub use agent_factory::AgentFactory;
 pub use binding_service::BindingService;
 pub use cache_service::CacheService;
+pub use collaboration::CollaborationService;
 pub use inference_service::InferenceService;
 pub use instruction_analyzer::InstructionAnalyzer;
 pub use memory_service::MemoryService;
 pub use model_repo_client::ModelRepoClient;
-pub use collaboration::CollaborationService;
 
 thread_local! {
     static STATE: RefCell<AgentCanisterState> = RefCell::new(AgentCanisterState::default());

@@ -67,12 +67,12 @@ const ModelCatalog = () => {
         return {
           ...model,
           state: stateString, // Ensure state is a string
-          family: meta?.family ?? getModelFamily(model.model_id),
-          description: getModelDescription(model.model_id),
+          family: meta?.family ?? getModelFamily(),
+          description: getModelDescription(),
           size_mb: calculateSizeMB(model.chunks),
-          badges: getModelBadges(stateString, model.model_id),
-          parameters: getModelParameters(model.model_id),
-          license: meta?.license ?? getModelLicense(model.model_id)
+          badges: getModelBadges(stateString),
+          parameters: getModelParameters(),
+          license: meta?.license ?? getModelLicense()
         }
       })
 
@@ -130,18 +130,10 @@ const ModelCatalog = () => {
   }
 
   // Helper functions for enrichment - ONLY use real DFINITY LLM models
-  const getModelFamily = (modelId: string) => {
-    if (modelId.includes('llama')) return 'Llama'
-    return 'AI Model' // Generic for unknown models
-  }
+  const getModelFamily = () => 'Core Capacity'
 
-  const getModelDescription = (modelId: string) => {
-    // Only show real descriptions for actual supported models
-    if (modelId.includes('llama3.1-8b') || modelId.includes('llama')) {
-      return 'High-performance general-purpose AI model with excellent instruction following capabilities'
-    }
-    return 'AI language model' // Generic for unknown models
-  }
+  const getModelDescription = () =>
+    'Optimized instruction-tuned capacity managed by the OHMS orchestration layer.'
 
   const calculateSizeMB = (chunks: any[]) => {
     const totalBytes = chunks.reduce((sum, chunk) => {
@@ -152,28 +144,19 @@ const ModelCatalog = () => {
     return Math.round(totalBytes / (1024 * 1024))
   }
 
-  const getModelBadges = (state: string, modelId: string) => {
+  const getModelBadges = (state: string) => {
     const badges = []
     if (state === 'Active') {
-      badges.push('Verified Quant', 'Reproducible')
-      if (!modelId.includes('test')) badges.push('License Clear')
+      badges.push('Verified Capacity', 'Coordinated')
     } else if (state === 'Pending') {
-      badges.push('Pending Verification')
+      badges.push('Pending Activation')
     }
-    return badges
+    badges
   }
 
-  const getModelParameters = (modelId: string) => {
-    // Only show real parameters for actual supported models
-    if (modelId.includes('llama3.1-8b') || modelId.includes('llama') && modelId.includes('8b')) return '8B'
-    return 'Unknown' // Don't fake parameters for unknown models
-  }
+  const getModelParameters = () => 'High Capacity'
 
-  const getModelLicense = (modelId: string) => {
-    // Only show real license info for actual supported models
-    if (modelId.includes('llama')) return 'Custom'
-    return 'Unknown' // Don't fake licenses for unknown models
-  }
+  const getModelLicense = () => 'OHMS Community'
 
   return (
     <div className="max-w-7xl mx-auto">

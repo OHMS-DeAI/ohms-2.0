@@ -358,3 +358,8 @@ input:focus, textarea:focus, select:focus {
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* Override default Tailwind container max-width to allow edge-to-edge layouts */
+.container {
+  max-width: 100%;
+}

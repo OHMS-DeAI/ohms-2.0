@@ -8,7 +8,7 @@ import Modal from '../components/Modal'
 import Input from '../components/Input'
 import Textarea from '../components/Textarea'
 import LoadingSpinner from '../components/LoadingSpinner'
-import { createAgentActor, createEconActor, createAgentsFromInstructions, executeCoordinatorWorkflow, sendMessageToAgent } from '../services/canisterService'
+import { createAgentActor, createEconActor, createAgentsFromInstructions, executeCoordinatorWorkflow } from '../services/canisterService'
 
 interface AgentCreationRequest {
   instruction: string
@@ -100,12 +100,12 @@ const AgentCreator = () => {
     if (!isConnected) return
     
     try {
-      const agent = await createAuthAgent()
-      if (!agent) {
+      const authAgent = await createAuthAgent()
+      if (!authAgent) {
         throw new Error('Failed to create authenticated agent')
       }
 
-      const econActor = createEconActor(agent as any)
+      const econActor = createEconActor(authAgent)
       
       // Check subscription and quota, create Pro tier if none exists (free for all users)
       const [subscription, quotaValidation] = await Promise.all([
@@ -148,12 +148,12 @@ const AgentCreator = () => {
     })
 
     try {
-      const agent = await createAuthAgent()
-      if (!agent) {
+      const authAgent = await createAuthAgent()
+      if (!authAgent) {
         throw new Error('Failed to create authenticated agent')
       }
 
-      const agentActor = createAgentActor(import.meta.env.VITE_OHMS_AGENT_CANISTER_ID, agent as any)
+      const agentActor = createAgentActor(import.meta.env.VITE_OHMS_AGENT_CANISTER_ID, authAgent)
 
       // Create the agent creation request
       const request: AgentCreationRequest = {
@@ -294,7 +294,7 @@ const AgentCreator = () => {
 
       switch (testType) {
         case 'single':
-          instructions = `Create a single autonomous agent that analyzes market trends and provides investment recommendations. Use the real Llama 3.1 8B model capabilities.`
+          instructions = `Create a single autonomous agent that analyzes market trends and provides investment recommendations using the primary OHMS capacity pool.`
           agentCount = 1
           capabilities = ['analysis', 'research']
           break
@@ -334,10 +334,20 @@ const AgentCreator = () => {
           addActivity('coordination', 'Testing agent coordination...')
 
           try {
-            const coordResult = await executeCoordinatorWorkflow(
-              `Coordinate between agents ${agentIds.join(', ')} to demonstrate autonomous collaboration`,
-              agentIds
-            )
+            const workflowRequest = {
+              id: `coord_${Date.now()}`,
+              nodes: agentIds.map((agentId, index) => ({
+                id: `node_${index}`,
+                type: 'agent',
+                data: {
+                  config: {
+                    instructions: `Agent ${agentId}: coordinate with peers to demonstrate collaborative planning and execution.`
+                  }
+                },
+              })),
+            }
+
+            const coordResult = await executeCoordinatorWorkflow(workflowRequest, authAgent)
 
             addActivity('coordination', 'Coordination test completed successfully')
 
@@ -559,7 +569,7 @@ const AgentCreator = () => {
       <Card>
         <h2 className="text-xl font-semibold text-white mb-6">🧪 Test Autonomous Agent Creation</h2>
         <p className="text-gray-400 mb-6">
-          Test creating multiple autonomous agents from the real Llama 3.1 8B model and see how they coordinate.
+          Test creating multiple autonomous agents using the primary OHMS capacity and see how they coordinate.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">

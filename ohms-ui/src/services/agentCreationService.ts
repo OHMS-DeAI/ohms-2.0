@@ -5,7 +5,10 @@
  */
 
 import { createAgentsFromInstructions, coordinatorCanister, bindAgentAndWireRoutes } from './canisterService';
+import type { HttpAgent } from '@dfinity/agent';
 import type { EventEmitter } from './llmService';
+
+const IC_LLAMA_MODEL_ID = 'llama3.1-8b';
 
 export interface AgentCreationRequest {
   instructions: string;
@@ -163,9 +166,9 @@ export class AgentCreationService implements EventEmitter<AgentCreationEvent> {
         data: creationResult
       });
 
-      // If creation completed immediately, setup the agent
-      if (creationResult.status === 'completed' && creationResult.agentIds.length > 0) {
-        await this.setupCreatedAgent(creationResult.agentIds[0], request);
+      // Immediately bind and register the new agent so it is ready for inference
+      if (creationResult.agentIds.length > 0) {
+        await this.setupCreatedAgent(creationResult.agentIds[0], request, agent);
       }
 
       return creationResult;
@@ -208,23 +211,19 @@ export class AgentCreationService implements EventEmitter<AgentCreationEvent> {
 
   /**
    * Setup a newly created agent - bind model and wire routes
-   */
-  private async setupCreatedAgent(agentId: string, request: AgentCreationRequest): Promise<void> {
+  */
+  private async setupCreatedAgent(agentId: string, request: AgentCreationRequest, authAgent: HttpAgent): Promise<void> {
     try {
-      // Bind agent to NOVAQ model and wire inference routes
-      const bindResult = await bindAgentAndWireRoutes(agentId, 'llama3.1-8b'); // Use working model ID
-      
-      if (!bindResult.success) {
-        throw new Error(`Failed to setup agent: ${bindResult.message || 'Unknown error'}`);
-      }
+      // Bind agent to the IC-managed capacity pool and wire inference routes through the coordinator
+      await bindAgentAndWireRoutes(agentId, IC_LLAMA_MODEL_ID, authAgent);
 
       // Create agent record
       const agent: CreatedAgent = {
         agentId,
-        canisterId: bindResult.canisterId || 'ohms-agent',
+        canisterId: 'ohms-agent',
         capabilities: request.capabilities,
         status: 'ready',
-        modelId: 'llama3.1-8b',
+        modelId: IC_LLAMA_MODEL_ID,
         createdAt: BigInt(Date.now()) * BigInt(1000000)
       };
 
@@ -252,19 +251,25 @@ export class AgentCreationService implements EventEmitter<AgentCreationEvent> {
       });
 
     } catch (error) {
-      console.error('Failed to setup agent:', error);
-      
       // Update agent status to error
       const agent: CreatedAgent = {
         agentId,
         canisterId: 'unknown',
         capabilities: request.capabilities,
         status: 'error',
-        modelId: 'llama3.1-8b',
+        modelId: IC_LLAMA_MODEL_ID,
         createdAt: BigInt(Date.now()) * BigInt(1000000)
       };
 
       this.state.createdAgents.set(agentId, agent);
+
+      this.emit({
+        type: 'agent_creation_failed',
+        agentId,
+        data: { agent, error }
+      });
+
+      throw error;
     }
   }
 
@@ -298,7 +303,8 @@ export class AgentCreationService implements EventEmitter<AgentCreationEvent> {
         return creationResult;
       }
     } catch (error) {
-      console.error('Failed to get creation status:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to get creation status';
+      this.handleError(AgentCreationError.CanisterError, errorMessage);
     }
 
     return null;

@@ -4,8 +4,7 @@ use ic_cdk::api::management_canister::http_request::{
     TransformContext,
 };
 use ohms_shared::llm_client::{
-    ChatCompletionResponse, LlmProvider, LlmRequest, LlmResponse,
-    ProviderConfig,
+    ChatCompletionResponse, LlmProvider, LlmRequest, LlmResponse, ProviderConfig,
 };
 use serde::Serialize;
 
@@ -29,20 +28,24 @@ impl HttpOutcallService {
         api_key: Option<String>,
     ) -> Result<LlmResponse, String> {
         let config = ohms_shared::llm_client::LlmClient::get_provider_config(provider);
-        
+
         let mut last_error = String::new();
-        
+
         for attempt in 0..MAX_RETRIES {
-            match Self::try_llm_call(request, &config, api_key.clone()).await {
+            match Self::try_llm_call(request, &config, provider, api_key.clone()).await {
                 Ok(response) => {
                     return Ok(LlmResponse {
-                        content: response.choices.first()
+                        content: response
+                            .choices
+                            .first()
                             .map(|c| c.message.content.clone())
                             .unwrap_or_default(),
                         tokens_used: response.usage.total_tokens,
                         provider: provider.name(),
                         model: request.model.clone(),
-                        finish_reason: response.choices.first()
+                        finish_reason: response
+                            .choices
+                            .first()
                             .map(|c| c.finish_reason.clone())
                             .unwrap_or_else(|| "unknown".to_string()),
                         cached: false,
@@ -50,7 +53,7 @@ impl HttpOutcallService {
                 }
                 Err(e) => {
                     last_error = format!("Attempt {}/{}: {}", attempt + 1, MAX_RETRIES, e);
-                    
+
                     if attempt < MAX_RETRIES - 1 {
                         ic_cdk::api::call::call_raw(
                             Principal::management_canister(),
@@ -64,31 +67,46 @@ impl HttpOutcallService {
                 }
             }
         }
-        
-        Err(format!("Failed after {} retries: {}", MAX_RETRIES, last_error))
+
+        Err(format!(
+            "Failed after {} retries: {}",
+            MAX_RETRIES, last_error
+        ))
     }
 
     /// Single attempt at LLM call
     async fn try_llm_call(
         request: &LlmRequest,
         config: &ProviderConfig,
+        provider: &LlmProvider,
         api_key: Option<String>,
     ) -> Result<ChatCompletionResponse, String> {
         let chat_request = request.to_chat_request();
         let body = serde_json::to_string(&chat_request)
             .map_err(|e| format!("Failed to serialize request: {}", e))?;
 
-        let mut headers = vec![
-            HttpHeader {
-                name: "Content-Type".to_string(),
-                value: "application/json".to_string(),
-            },
-        ];
+        let mut headers = vec![HttpHeader {
+            name: "Content-Type".to_string(),
+            value: "application/json".to_string(),
+        }];
 
         if let Some(key) = api_key {
             headers.push(HttpHeader {
                 name: "Authorization".to_string(),
                 value: format!("Bearer {}", key),
+            });
+        }
+
+        if matches!(provider, LlmProvider::OpenRouter)
+            || matches!(provider, LlmProvider::UserKey { provider, .. } if provider.contains("openrouter"))
+        {
+            headers.push(HttpHeader {
+                name: "HTTP-Referer".to_string(),
+                value: "https://ohms.network".to_string(),
+            });
+            headers.push(HttpHeader {
+                name: "X-Title".to_string(),
+                value: "OHMS AI".to_string(),
             });
         }
 
@@ -110,20 +128,27 @@ impl HttpOutcallService {
 
         let response = http_response.0;
 
-        let status_num: u32 = response.status.0.clone().try_into()
+        let status_num: u32 = response
+            .status
+            .0
+            .clone()
+            .try_into()
             .map_err(|_| "Invalid status code".to_string())?;
 
         if status_num >= 200 && status_num < 300 {
             let body_str = String::from_utf8(response.body)
                 .map_err(|e| format!("Failed to decode response: {}", e))?;
-            
+
             serde_json::from_str::<ChatCompletionResponse>(&body_str)
                 .map_err(|e| format!("Failed to parse response: {}", e))
         } else {
-            Err(format!("HTTP error {}: {:?}", response.status, String::from_utf8_lossy(&response.body)))
+            Err(format!(
+                "HTTP error {}: {:?}",
+                response.status,
+                String::from_utf8_lossy(&response.body)
+            ))
         }
     }
-
 }
 
 /// Transform HTTP response to remove headers for consensus
@@ -135,4 +160,3 @@ fn transform_http_response(args: TransformArgs) -> HttpResponse {
         headers: vec![],
     }
 }
-

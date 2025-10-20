@@ -192,31 +192,29 @@ impl Default for LlmClient {
 impl LlmClient {
     pub fn new() -> Self {
         let mut rate_limits = HashMap::new();
-        
+
         let groq_config = ProviderConfig::groq();
         rate_limits.insert(
             "groq".to_string(),
-            RateLimit::new("groq".to_string(), groq_config.free_tier_rpm, groq_config.free_tier_tpm),
-        );
-
-        let together_config = ProviderConfig::together_ai();
-        rate_limits.insert(
-            "together_ai".to_string(),
-            RateLimit::new("together_ai".to_string(), together_config.free_tier_rpm, together_config.free_tier_tpm),
+            RateLimit::new(
+                "groq".to_string(),
+                groq_config.free_tier_rpm,
+                groq_config.free_tier_tpm,
+            ),
         );
 
         let openrouter_config = ProviderConfig::openrouter();
         rate_limits.insert(
             "openrouter".to_string(),
-            RateLimit::new("openrouter".to_string(), openrouter_config.free_tier_rpm, openrouter_config.free_tier_tpm),
+            RateLimit::new(
+                "openrouter".to_string(),
+                openrouter_config.free_tier_rpm,
+                openrouter_config.free_tier_tpm,
+            ),
         );
 
         Self {
-            providers: vec![
-                LlmProvider::Groq,
-                LlmProvider::TogetherAi,
-                LlmProvider::OpenRouter,
-            ],
+            providers: vec![LlmProvider::Groq, LlmProvider::OpenRouter],
             rate_limits,
             cache: HashMap::new(),
             cache_capacity: 1000,
@@ -255,7 +253,7 @@ impl LlmClient {
     /// Cache a response
     pub fn cache_response(&mut self, request: &LlmRequest, response: &LlmResponse, now: u64) {
         let key = Self::cache_key(request);
-        
+
         if self.cache.len() >= self.cache_capacity {
             if let Some(oldest_key) = self.cache.keys().next().cloned() {
                 self.cache.remove(&oldest_key);
@@ -273,9 +271,17 @@ impl LlmClient {
     }
 
     /// Select best available provider based on rate limits
-    pub fn select_provider(&mut self, estimated_tokens: u32, now: u64) -> Option<LlmProvider> {
+    pub fn select_provider(
+        &mut self,
+        estimated_tokens: u32,
+        now: u64,
+        excluded: &[String],
+    ) -> Option<LlmProvider> {
         for provider in &self.providers {
             let name = provider.name();
+            if excluded.contains(&name) {
+                continue;
+            }
             if let Some(rate_limit) = self.rate_limits.get(&name) {
                 if rate_limit.can_make_request(estimated_tokens, now) {
                     return Some(provider.clone());
@@ -298,13 +304,11 @@ impl LlmClient {
             provider: provider.clone(),
             api_key,
         };
-        
+
         self.providers.insert(0, user_provider);
-        
-        self.rate_limits.insert(
-            provider.clone(),
-            RateLimit::new(provider, 1000, 1_000_000),
-        );
+
+        self.rate_limits
+            .insert(provider.clone(), RateLimit::new(provider, 1000, 1_000_000));
     }
 
     /// Get provider configuration
@@ -323,6 +327,11 @@ impl LlmClient {
                 }
             }
         }
+    }
+
+    pub fn estimate_tokens(prompt: &str, max_tokens: u32) -> u32 {
+        let prompt_tokens = ((prompt.len() as u32) / 4).max(1);
+        prompt_tokens.saturating_add(max_tokens)
     }
 }
 

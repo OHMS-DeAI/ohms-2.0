@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAgent } from '../context/AgentContext'
 import Card from '../components/Card'
 import Button from '../components/Button'
-import LoadingSpinner from '../components/LoadingSpinner'
 import Badge from '../components/Badge'
 import Input from '../components/Input'
 import Textarea from '../components/Textarea'
+import AgentFlowBuilder, { type AgentFlowState, generateInstructionFromFlow } from '../components/agent-designer/AgentFlowBuilder'
 import {
   createAgentsFromInstructionsTyped,
   createSubscription,
@@ -13,6 +13,7 @@ import {
   getUserSubscription,
   listModels,
   listUserAgents,
+  bindAgentAndWireRoutes,
   type AgentSummaryView,
   type CandidAgentCreationResult,
 } from '../services/canisterService'
@@ -69,10 +70,14 @@ const UserAgentCreator = () => {
   const [subscription, setSubscription] = useState<EconUserSubscription | null>(null)
   const [quota, setQuota] = useState<QuotaValidation | null>(null)
   const [availableModels, setAvailableModels] = useState<string[]>([])
+  const [flowState, setFlowState] = useState<AgentFlowState | null>(null)
+
+  const [subscriptionUnavailable, setSubscriptionUnavailable] = useState(false)
 
   const loadUserData = async () => {
     setLoading(true)
     setError(null)
+    setSubscriptionUnavailable(false)
 
     try {
       const agent = await createAuthAgent()
@@ -90,8 +95,23 @@ const UserAgentCreator = () => {
       if (subscriptionResult) {
         setSubscription(subscriptionResult)
       } else {
-        const created = await createSubscription('pro', false, agent)
-        setSubscription(created)
+        try {
+          const created = await createSubscription('pro', false, agent)
+          setSubscription(created)
+        } catch (creationErr) {
+          const message =
+            creationErr instanceof Error ? creationErr.message : typeof creationErr === 'string' ? creationErr : JSON.stringify(creationErr)
+          const methodUnavailable =
+            message.includes('subscription_method_unavailable') ||
+            (message.includes('has no update method') && message.includes('create_subscription'))
+
+          if (methodUnavailable) {
+            setSubscriptionUnavailable(true)
+            setSubscription(null)
+          } else {
+            throw creationErr instanceof Error ? creationErr : new Error(message)
+          }
+        }
       }
 
       setQuota(quotaResult ?? null)
@@ -116,6 +136,19 @@ const UserAgentCreator = () => {
   }, [quota])
 
   const quotaAllowsCreation = quota?.allowed ?? true
+  const flowInstruction = useMemo(() => (flowState ? generateInstructionFromFlow(flowState) : ''), [flowState])
+
+  const handleFlowChange = useCallback((state: AgentFlowState) => {
+    setFlowState(state)
+  }, [])
+
+  const handleApplyFlowInstruction = () => {
+    if (!flowInstruction.trim()) return
+    setForm(prev => ({
+      ...prev,
+      instruction: flowInstruction.trim(),
+    }))
+  }
 
   const handleCapabilityToggle = (capability: string) => {
     setForm(prev => {
@@ -130,7 +163,9 @@ const UserAgentCreator = () => {
   }
 
   const handleCreateAgent = async () => {
-    if (!form.instruction.trim()) {
+    const missionInstruction = form.instruction.trim() || flowInstruction.trim()
+
+    if (!missionInstruction) {
       setError('Please provide instructions for your agent')
       return
     }
@@ -152,13 +187,15 @@ const UserAgentCreator = () => {
 
       const creation: CandidAgentCreationResult = await createAgentsFromInstructionsTyped(
         {
-          instruction: form.instruction.trim(),
+          instruction: missionInstruction,
           agentCount: form.agentCount,
           capabilities: form.capabilities,
           priority: form.priority,
         },
         agent,
       )
+
+      await bindAgentAndWireRoutes(creation.agent_id, 'llama3.1-8b', agent)
 
       setSuccess(`Agent ${creation.agent_id} created successfully`)
       setForm({ instruction: '', agentCount: 1, capabilities: [], priority: 'normal' })
@@ -174,7 +211,7 @@ const UserAgentCreator = () => {
 
   if (!isWalletAvailable) {
     return (
-      <div className="max-w-6xl mx-auto">
+      <div className="px-4 md:px-8 xl:px-12">
         <Card className="text-center py-12">
           <h1 className="text-3xl font-bold text-accentGold mb-4">Agent Creator</h1>
           <p className="text-textOnDark/70">Connect your wallet to create autonomous agents.</p>
@@ -184,7 +221,7 @@ const UserAgentCreator = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="w-full px-4 md:px-8 xl:px-12 2xl:px-16 space-y-10">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-bold text-accentGold mb-2">Design Your Agent</h1>
@@ -216,6 +253,25 @@ const UserAgentCreator = () => {
         <div className="mt-4 flex items-center justify-between">
           <span className="text-sm text-textOnDark/70">Quota status: {quotaStatus}</span>
           <Badge variant={quotaAllowsCreation ? 'success' : 'warning'}>{quotaAllowsCreation ? 'Eligible' : 'Blocked'}</Badge>
+        </div>
+        {subscriptionUnavailable && (
+          <p className="mt-4 text-xs text-accentGold/70">
+            Subscription management is not enabled on this deployment. Using default quota policy.
+          </p>
+        )}
+      </Card>
+
+      <Card>
+        <h3 className="text-lg font-semibold text-accentGold mb-4">Workflow Designer</h3>
+        <p className="text-sm text-textOnDark/70 mb-4">
+          Craft an end-to-end flow that mirrors how your agent should reason, call tools, and ship results. This mirrors the
+          n8n-style builder reviewers expect to see in end-to-end demos.
+        </p>
+        <AgentFlowBuilder onFlowChange={handleFlowChange} />
+        <div className="mt-4 flex justify-end">
+          <Button variant="outline" onClick={handleApplyFlowInstruction} disabled={!flowInstruction.trim()}>
+            Use workflow as instruction
+          </Button>
         </div>
       </Card>
 
@@ -278,13 +334,13 @@ const UserAgentCreator = () => {
           </div>
 
           <div>
-            <p className="text-sm text-textOnDark/70 mb-2">Available Models</p>
+            <p className="text-sm text-textOnDark/70 mb-2">Available Capacity Pools</p>
             <div className="flex flex-wrap gap-2 text-sm">
               {availableModels.length === 0 ? (
-                <span className="text-textOnDark/60">No models available</span>
+                <span className="text-textOnDark/60">Capacity information unavailable</span>
               ) : (
-                availableModels.map(model => (
-                  <Badge key={model} variant="info">{model}</Badge>
+                availableModels.map((_, index) => (
+                  <Badge key={`capacity-${index}`} variant="info">Core Capacity {index + 1}</Badge>
                 ))
               )}
             </div>

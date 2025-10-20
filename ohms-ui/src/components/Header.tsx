@@ -72,7 +72,7 @@ const Header = () => {
 
   return (
     <header className="glass-morph sticky top-0 z-50 shadow-lg">
-      <div className="container mx-auto px-4">
+      <div className="w-full px-4 md:px-8 xl:px-12 2xl:px-16">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <div className="flex items-center">

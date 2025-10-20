@@ -1,11 +1,11 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { HttpAgent } from '@dfinity/agent';
 import { useAgent } from '../context/AgentContext';
 import { logger } from '../utils/professionalLogger';
 import { 
   createAgentsFromInstructions, 
   executeCoordinatorWorkflow, 
-  sendMessageToAgent, 
-  bindAgentAndWireRoutes 
+  sendMessageToAgent 
 } from '../services/canisterService';
 import { useConnectionManager } from '../hooks/useConnectionManager';
 import type { ConnectionHandle } from '../hooks/useConnectionManager';
@@ -47,7 +47,7 @@ interface Workflow {
 }
 
 const Coordinator: React.FC = () => {
-  const { isConnected } = useAgent();
+  const { isConnected, createAuthAgent } = useAgent();
   const canvasRef = useRef<HTMLDivElement>(null);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
@@ -61,6 +61,8 @@ const Coordinator: React.FC = () => {
   const [interactionMessage, setInteractionMessage] = useState('');
   const [interactionHistory, setInteractionHistory] = useState<{role: string, message: string, timestamp: Date}[]>([]);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [authAgent, setAuthAgent] = useState<HttpAgent | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // Connection management
   const connectionManager = useConnectionManager();
@@ -76,6 +78,56 @@ const Coordinator: React.FC = () => {
     setHoveredHandle,
     handleKeyDown
   } = connectionManager;
+
+  useEffect(() => {
+    let cancelled = false;
+    const bootstrap = async () => {
+      if (!isConnected) {
+        setAuthAgent(null);
+        setAuthError(null);
+        return;
+      }
+      try {
+        const agentInstance = await createAuthAgent();
+        if (!cancelled) {
+          setAuthAgent(agentInstance);
+          setAuthError(null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : 'Authentication failed';
+          setAuthAgent(null);
+          setAuthError(message);
+        }
+      }
+    };
+
+    void bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isConnected, createAuthAgent]);
+
+  const ensureAuthAgent = useCallback(async (): Promise<HttpAgent> => {
+    if (authAgent) {
+      return authAgent;
+    }
+    try {
+      const agentInstance = await createAuthAgent();
+      if (!agentInstance) {
+        throw new Error('Authentication required to interact with agents');
+      }
+      setAuthAgent(agentInstance);
+      setAuthError(null);
+      return agentInstance;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Authentication failed';
+      setAuthAgent(null);
+      setAuthError(message);
+      throw error instanceof Error ? error : new Error(message);
+    }
+  }, [authAgent, createAuthAgent]);
 
   // Available node types for the workflow
   const nodeTypes = [
@@ -173,8 +225,8 @@ const Coordinator: React.FC = () => {
     });
 
     try {
-      // Use the new coordinator workflow execution service
-      const result = await executeCoordinatorWorkflow(selectedWorkflow);
+      const agentInstance = await ensureAuthAgent();
+      const result = await executeCoordinatorWorkflow(selectedWorkflow, agentInstance);
 
       if (result.success) {
         // Update nodes with agent IDs and responses
@@ -214,7 +266,7 @@ const Coordinator: React.FC = () => {
       // Show user-friendly error
       alert(`Workflow execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, [selectedWorkflow]);
+  }, [selectedWorkflow, ensureAuthAgent]);
 
   // Stop workflow execution
   const stopWorkflow = useCallback(() => {
@@ -545,7 +597,8 @@ const Coordinator: React.FC = () => {
     ]);
 
     try {
-      const response = await sendMessageToAgent(agentId, userMessage);
+      const agentInstance = await ensureAuthAgent();
+      const response = await sendMessageToAgent(agentId, userMessage, agentInstance);
       
       // Add agent response to history
       setInteractionHistory(prev => [
@@ -564,7 +617,7 @@ const Coordinator: React.FC = () => {
         }
       ]);
     }
-  }, [interactionMessage]);
+  }, [interactionMessage, ensureAuthAgent]);
 
   // Open interaction panel for specific agent
   const openAgentInteraction = useCallback((agentId: string) => {
@@ -588,6 +641,11 @@ const Coordinator: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-primary">
+      {authError && (
+        <div className="px-4 py-3 text-sm text-red-300 bg-red-500/10 border-b border-red-500/30">
+          {authError}
+        </div>
+      )}
       {/* Header */}
       <div className="border-b border-border bg-surface-light">
         <div className="max-w-7xl mx-auto px-4 py-4">

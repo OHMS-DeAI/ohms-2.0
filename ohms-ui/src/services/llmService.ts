@@ -1,9 +1,7 @@
 import { Principal } from '@dfinity/principal';
 
-// Type definitions for AI model integration
-// Currently only Llama 3.1 8B is supported
 export enum QuantizedModel {
-  Llama3_1_8B = 'llama3.1-8b', // Match the real model ID from backend
+  Primary = 'auto',
 }
 
 // Future-ready architecture: Additional models will be added based on demand
@@ -144,12 +142,11 @@ export class LlmService {
       // const models = await this.agentCanister.getAvailableModels();
 
       // Model information for current AI infrastructure
-      // Currently only Llama 3.1 8B is supported
       this.state.availableModels = [
         {
-          model: QuantizedModel.Llama3_1_8B,
-          display_name: 'Llama 3.1 8B',
-          description: 'Fast and efficient general-purpose AI for content generation and code assistance',
+          model: QuantizedModel.Primary,
+          display_name: 'Primary Capacity',
+          description: 'Managed instruction-tuned capacity for OHMS conversations.',
           capabilities: [
             'Content Generation',
             'Code Assistance',
@@ -395,7 +392,7 @@ export class LlmService {
     // Currently free for beta users
     // Future pricing model will be based on usage tiers
     switch (model) {
-      case QuantizedModel.Llama3_1_8B:
+      case QuantizedModel.Primary:
         return 0; // Currently free
         // Future: return tokens * 0.0001; // $0.10 per 1K tokens
       default:

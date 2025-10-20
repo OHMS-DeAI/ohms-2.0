@@ -1,9 +1,22 @@
-use crate::domain::{AgentConfig, AgentHealth};
+use std::collections::HashMap;
+
 use candid::Principal;
+use ic_cdk::api::time;
+use ohms_shared::{ModelManifest, ModelState, QuantizationFormat, QuantizedArtifactMetadata};
+
+use crate::domain::{AgentConfig, AgentHealth};
 
 use super::{
     with_state, with_state_mut, CacheService, MemoryService, ModelBindingState, ModelRepoClient,
 };
+
+const IC_LLAMA_MODEL_IDS: &[&str] = &[
+    "llama3.1-8b",
+    "llama3.1:8b",
+    "ic-llm/llama3.1-8b",
+    "IC_LLAMa3.1-8B",
+    "ic-llm/llama-3.1-8b-instruct",
+];
 
 pub struct BindingService;
 
@@ -25,6 +38,11 @@ impl BindingService {
     }
 
     pub async fn bind_model(model_id: String) -> Result<(), String> {
+        if Self::is_ic_llama_model(&model_id) {
+            Self::bind_ic_llama_model(&model_id);
+            return Ok(());
+        }
+
         let canister_id = with_state(|state| state.config.model_repo_canister_id.clone());
         if canister_id.is_empty() {
             return Err("model repository canister id is not configured".to_string());
@@ -73,6 +91,54 @@ impl BindingService {
         }
 
         Ok(())
+    }
+
+    fn is_ic_llama_model(model_id: &str) -> bool {
+        let normalized = model_id.trim().to_lowercase();
+        IC_LLAMA_MODEL_IDS
+            .iter()
+            .any(|candidate| normalized == candidate.trim().to_lowercase())
+    }
+
+    fn bind_ic_llama_model(model_id: &str) {
+        let now = time();
+        let manifest = ModelManifest {
+            model_id: model_id.to_string(),
+            version: "ic-llm-1.0.0".to_string(),
+            state: ModelState::Active,
+            uploaded_at: now,
+            activated_at: Some(now),
+            total_size_bytes: 0,
+            chunk_count: 1,
+            checksum: "ic-llm-remote-model".to_string(),
+            quantization: QuantizedArtifactMetadata {
+                format: QuantizationFormat::Custom("ic-llm".to_string()),
+                artifact_checksum: "ic-llm".to_string(),
+                compression_ratio: 1.0,
+                accuracy_retention: 1.0,
+                bits_per_weight: None,
+                notes: Some(
+                    "Served directly from the Internet Computer LLM canister; no local chunks."
+                        .to_string(),
+                ),
+            },
+            metadata: {
+                let mut map = HashMap::new();
+                map.insert("provider".to_string(), "ic-llm".to_string());
+                map.insert("model".to_string(), "llama3.1-8b".to_string());
+                map
+            },
+            chunks: Vec::new(),
+        };
+
+        with_state_mut(|state| {
+            let mut binding = ModelBindingState::new(manifest);
+            binding.chunks_loaded = binding.total_chunks;
+            binding.ready = true;
+            state.binding = Some(binding);
+            CacheService::clear_all(state);
+            MemoryService::reconfigure(state);
+        });
     }
 
     pub async fn prefetch_next(requested: u32) -> Result<u32, String> {

@@ -558,7 +558,7 @@ export class ApiClient {
   }
 
   // LLM Integration - Use ohms-agent canister for inference
-  async sendLlmMessage(message: string, model: string = 'llama3.1-8b'): Promise<ApiResponse<any>> {
+  async sendLlmMessage(message: string, model: string = 'auto'): Promise<ApiResponse<any>> {
     // Create InferenceRequest according to ohms-agent.did
     const inferenceRequest = {
       seed: BigInt(Math.floor(Math.random() * 1000000)),
@@ -586,7 +586,7 @@ export class ApiClient {
     return Promise.resolve({
       success: true,
       data: [
-        { id: 'llama3.1-8b', name: 'Llama 3.1 8B', description: 'High-performance general-purpose AI model for content generation and intelligent conversations' }
+        { id: 'auto', name: 'Primary Capacity', description: 'Managed shared capacity for OHMS orchestration.' }
       ],
       metadata: {
         timestamp: Date.now(),

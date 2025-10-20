@@ -1,7 +1,7 @@
 /**
  * Direct LLM Service for OHMS Agents
  * Calls the deployed agent canister's infer method to use DFINITY LLM
- * This makes the agents immediately functional with the Llama 3.1 8B model
+ * This makes the agents immediately functional with the managed OHMS capacity pool
  */
 
 import { Actor, HttpAgent } from '@dfinity/agent'
@@ -172,7 +172,7 @@ export class DirectLlmService {
     // Create a system message that gives the agent its identity
     const systemMessage: ChatMessage = {
       role: 'system',
-      content: `You are an autonomous AI agent (ID: ${agentId}) running on the OHMS 2.0 platform. You are powered by Llama 3.1 8B via DFINITY's Internet Computer. Be helpful, accurate, and engaging in your responses.`
+      content: `You are an autonomous AI agent (ID: ${agentId}) running on the OHMS 2.0 platform. You are powered by OHMS-managed instruction-tuned capacity via the Internet Computer. Be helpful, accurate, and engaging in your responses.`
     }
 
     const userMsg: ChatMessage = {
@@ -192,12 +192,12 @@ async getAgentStatus(agentId: string): Promise<{online: boolean, model: string}>
     const response = await this.chatWithAgent(agentId, "Hello! Are you online?")
     return {
       online: response.success,
-      model: "Llama 3.1 8B (DFINITY)"
+      model: "Primary Capacity"
     }
   } catch {
     return {
       online: false,
-      model: "Llama 3.1 8B (DFINITY)"
+      model: "Primary Capacity"
     }
   }
 }

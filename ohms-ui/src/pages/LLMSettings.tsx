@@ -22,14 +22,6 @@ const DEFAULT_PROVIDERS: ProviderConfig[] = [
     defaultModel: 'llama-3.1-8b-instant',
   },
   {
-    name: 'together_ai',
-    displayName: 'Together.ai',
-    baseUrl: 'https://api.together.xyz/v1/chat/completions',
-    freeRPM: 60,
-    freeTPM: 60000,
-    defaultModel: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
-  },
-  {
     name: 'openrouter',
     displayName: 'OpenRouter',
     baseUrl: 'https://openrouter.ai/api/v1/chat/completions',
@@ -168,7 +160,7 @@ const LLMSettings: React.FC = () => {
                   </div>
 
                   <div className="text-sm text-gray-600 space-y-1 mb-3">
-                    <p>Model: <span className="font-mono">{provider.defaultModel}</span></p>
+          <p>Model: <span className="font-mono">Managed by provider</span></p>
                     <p>Free Rate Limits: {provider.freeRPM} RPM, {provider.freeTPM.toLocaleString()} TPM</p>
                   </div>
 
@@ -239,4 +231,3 @@ const LLMSettings: React.FC = () => {
 };
 
 export default LLMSettings;
-

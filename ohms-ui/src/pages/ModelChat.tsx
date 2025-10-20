@@ -36,7 +36,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ role, content, timestamp, mod
         </div>
         <div className={`text-xs text-text-muted mt-1 ${isUser ? 'text-right' : 'text-left'}`}>
           {timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          {!isUser && <span className="ml-2 text-secondary">Llama 3.1 8B</span>}
+          {!isUser && <span className="ml-2 text-secondary">Primary Capacity</span>}
         </div>
       </div>
 
@@ -102,7 +102,7 @@ const ModelChat: React.FC = () => {
     try {
       // Create conversation if it doesn't exist
       if (!llmState.currentConversation) {
-        await createLlmConversation(QuantizedModel.Llama3_1_8B);
+        await createLlmConversation(QuantizedModel.Primary);
       }
 
       // Send the message
@@ -115,7 +115,7 @@ const ModelChat: React.FC = () => {
 
   const handleNewChat = async () => {
     try {
-      await createLlmConversation(QuantizedModel.Llama3_1_8B);
+      await createLlmConversation(QuantizedModel.Primary);
     } catch (error) {
       // Removed console log
     }
@@ -201,7 +201,7 @@ const ModelChat: React.FC = () => {
               <div className="bg-surface rounded-lg p-3">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-2 h-2 bg-secondary rounded-full"></div>
-                  <span className="text-sm font-medium text-text-primary">Llama 3.1 8B</span>
+                  <span className="text-sm font-medium text-text-primary">Primary Capacity</span>
                 </div>
                 <p className="text-xs text-text-secondary leading-relaxed">
                   General-purpose AI for content generation, code assistance, and creative tasks.
@@ -236,7 +236,7 @@ const ModelChat: React.FC = () => {
             )}
             <div>
               <h1 className="text-lg font-semibold text-text-primary">
-                {llmState.currentConversation ? 'Chat with Llama 3.1 8B' : 'Start a new conversation'}
+                {llmState.currentConversation ? 'Chat with Primary Capacity' : 'Start a new conversation'}
               </h1>
               <p className="text-sm text-text-secondary">
                 {llmState.currentConversation
@@ -266,7 +266,7 @@ const ModelChat: React.FC = () => {
                   </svg>
                 </div>
                 <h2 className="text-xl font-semibold text-text-primary mb-2">
-                  Chat with Llama 3.1 8B
+                  Chat with Primary Capacity
                 </h2>
                 <p className="text-text-secondary mb-6">
                   Ask questions about coding, get help with content creation, or explore creative ideas.

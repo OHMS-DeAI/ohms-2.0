@@ -294,7 +294,7 @@ impl AgentSpawningService {
         with_state_mut(|state| {
             let profiles = &mut state.agent_capability_profiles;
             for agent in agents {
-                    let profile = AgentCapabilityProfile {
+                let profile = AgentCapabilityProfile {
                         agent_id: agent.agent_id.clone(),
                         capabilities: agent.capabilities.clone(),
                         performance_metrics: crate::services::autonomous_coord::PerformanceMetrics {
@@ -313,8 +313,8 @@ impl AgentSpawningService {
                             conflict_resolution_strategy: crate::services::autonomous_coord::ConflictResolutionStrategy::Consensus,
                         },
                     };
-                    profiles.insert(agent.agent_id.clone(), profile);
-                }
+                profiles.insert(agent.agent_id.clone(), profile);
+            }
         });
 
         Ok(())

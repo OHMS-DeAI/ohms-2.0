@@ -1,5 +1,5 @@
-use ic_cdk::api::time;
 use crate::services::with_state_mut;
+use ic_cdk::api::time;
 
 pub struct CollaborationService;
 
@@ -61,11 +61,13 @@ impl CollaborationService {
     /// Check if agent can be promoted to queen
     pub fn can_be_queen(agent_id: &str) -> bool {
         crate::services::with_state(|state| {
-            state.agents.get(agent_id)
+            state
+                .agents
+                .get(agent_id)
                 .map(|agent| {
-                    agent.capabilities.contains(&"planning".to_string()) ||
-                    agent.capabilities.contains(&"synthesis".to_string()) ||
-                    agent.capabilities.contains(&"coordination".to_string())
+                    agent.capabilities.contains(&"planning".to_string())
+                        || agent.capabilities.contains(&"synthesis".to_string())
+                        || agent.capabilities.contains(&"coordination".to_string())
                 })
                 .unwrap_or(false)
         })
@@ -97,9 +99,8 @@ mod tests {
     #[test]
     fn test_role_management() {
         let agent_id = "test_agent_1";
-        
+
         let result = CollaborationService::promote_to_queen(agent_id);
         assert!(result.is_ok() || result.is_err());
     }
 }
-

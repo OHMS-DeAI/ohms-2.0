@@ -1,4 +1,8 @@
+use candid::{CandidType, Principal};
+use ic_cdk::api::call::{call, CallResult};
 use ic_cdk::api::time;
+use ic_llm::{ChatMessage, Model, Response, Tool};
+use serde::{Deserialize, Serialize};
 
 use crate::domain::{
     AgentError, AgentTask, AgentTaskResult, DecodeParams, InferenceRequest, InferenceResponse,
@@ -8,17 +12,23 @@ use super::{with_state, with_state_mut, CacheService, MemoryService};
 
 pub struct InferenceService;
 
+#[derive(CandidType, Serialize, Deserialize, Debug)]
+struct LlmChatRequest {
+    model: String,
+    messages: Vec<ChatMessage>,
+    tools: Option<Vec<Tool>>,
+}
+
 impl InferenceService {
     pub async fn process_inference(request: InferenceRequest) -> Result<InferenceResponse, String> {
         if with_state(|state| state.binding.is_none()) {
             return Err(AgentError::ModelNotBound.to_string());
         }
 
-        if let Some(mut cached) = CacheService::try_get(&request) {
+        if let Some(cached) = CacheService::try_get(&request) {
             with_state_mut(|state| {
                 state.last_inference = time();
             });
-            cached.cache_hits = cached.cache_hits.saturating_add(1);
             return Ok(cached);
         }
 
@@ -28,35 +38,51 @@ impl InferenceService {
             state.metrics.total_inference_requests += 1;
         });
 
-        let response = Self::run_generation(&request.prompt, &request.decode_params);
+        let generation_result = Self::run_generation(&request.prompt, &request.decode_params).await;
 
         let elapsed_ns = time().saturating_sub(start);
         let inference_time_ms = elapsed_ns / 1_000_000;
-        let final_response = InferenceResponse {
-            generated_text: response.generated_text,
-            tokens: response.tokens,
-            inference_time_ms,
-            cache_hits: 0,
-            cache_misses: 1,
-        };
+        let mut maybe_response: Option<InferenceResponse> = None;
+        let mut failure: Option<String> = None;
 
-        CacheService::insert(&request, final_response.clone());
-        MemoryService::record_interaction(&request.prompt, &final_response.generated_text, 0.35);
+        match generation_result {
+            Ok(generated_text) => {
+                let tokens = Self::tokenize_text(&generated_text);
+                let response = InferenceResponse {
+                    generated_text: generated_text.clone(),
+                    tokens,
+                    inference_time_ms,
+                    cache_hits: 0,
+                    cache_misses: 1,
+                };
+                CacheService::insert(&request, response.clone());
+                MemoryService::record_interaction(&request.prompt, &generated_text, 0.35);
+                maybe_response = Some(response);
+            }
+            Err(err) => {
+                failure = Some(err);
+            }
+        }
 
         with_state_mut(|state| {
             state.active_inference = state.active_inference.saturating_sub(1);
             state.last_inference = time();
-            let total = state.metrics.total_inference_requests;
-            state.metrics.average_latency_ms = if total == 0 {
-                0.0
-            } else {
-                ((state.metrics.average_latency_ms * (total.saturating_sub(1) as f64))
-                    + inference_time_ms as f64)
-                    / total as f64
-            };
+            if maybe_response.is_some() {
+                let total = state.metrics.total_inference_requests;
+                state.metrics.average_latency_ms = if total == 0 {
+                    0.0
+                } else {
+                    ((state.metrics.average_latency_ms * (total.saturating_sub(1) as f64))
+                        + inference_time_ms as f64)
+                        / total as f64
+                };
+            }
         });
 
-        Ok(final_response)
+        match maybe_response {
+            Some(response) => Ok(response),
+            None => Err(failure.unwrap_or_else(|| "IC LLM generation failed".to_string())),
+        }
     }
 
     pub async fn execute_task(agent_id: &str, task: &AgentTask) -> Result<AgentTaskResult, String> {
@@ -97,31 +123,26 @@ impl InferenceService {
         })
     }
 
-    fn run_generation(prompt: &str, params: &DecodeParams) -> InferenceResponse {
-        let tokens = Self::tokenize(prompt);
-        let summary = Self::summarize(prompt);
-        let insights = Self::derive_insights(&tokens);
-        let plan = Self::build_plan(&tokens, params);
+    async fn run_generation(prompt: &str, params: &DecodeParams) -> Result<String, String> {
+        let messages = vec![
+            ChatMessage::System {
+                content: Self::build_system_prompt(params),
+            },
+            ChatMessage::User {
+                content: prompt.to_string(),
+            },
+        ];
 
-        let generated_text = format!(
-            "Summary:\n{}\n\nKey Insights:\n{}\n\nRecommended Plan:\n{}",
-            summary,
-            insights.join("\n"),
-            plan.join("\n"),
-        );
-
-        InferenceResponse {
-            generated_text,
-            tokens,
-            inference_time_ms: 0,
-            cache_hits: 0,
-            cache_misses: 0,
-        }
+        let response = Self::invoke_ic_llm(Model::Llama3_1_8B, messages).await?;
+        response
+            .message
+            .content
+            .ok_or_else(|| "IC LLM returned empty content".to_string())
     }
 
-    fn tokenize(prompt: &str) -> Vec<String> {
+    fn tokenize_text(text: &str) -> Vec<String> {
         let mut tokens = Vec::new();
-        for word in prompt.split(|c: char| !c.is_alphanumeric()) {
+        for word in text.split(|c: char| !c.is_alphanumeric()) {
             if word.len() <= 2 {
                 continue;
             }
@@ -136,54 +157,35 @@ impl InferenceService {
         tokens
     }
 
-    fn summarize(prompt: &str) -> String {
-        let sentences: Vec<&str> = prompt
-            .split(|c| c == '.' || c == '!' || c == '?')
-            .filter(|s| !s.trim().is_empty())
-            .collect();
-        match sentences.len() {
-            0 => "No context provided".to_string(),
-            1 => sentences[0].trim().to_string(),
-            _ => {
-                let first = sentences[0].trim();
-                let last = sentences.last().unwrap().trim();
-                format!("{} ... {}", first, last)
-            }
+    async fn invoke_ic_llm(model: Model, messages: Vec<ChatMessage>) -> Result<Response, String> {
+        let llm_canister = Principal::from_text("w36hm-eqaaa-aaaal-qr76a-cai")
+            .map_err(|err| format!("invalid IC LLM canister id: {err}"))?;
+
+        let request = LlmChatRequest {
+            model: model.to_string(),
+            messages,
+            tools: None,
+        };
+
+        let result: CallResult<(Response,)> = call(llm_canister, "v1_chat", (request,)).await;
+        match result {
+            Ok((response,)) => Ok(response),
+            Err((code, msg)) => Err(format!("IC LLM call failed ({code:?}): {msg}")),
         }
     }
 
-    fn derive_insights(tokens: &[String]) -> Vec<String> {
-        let mut counts = std::collections::HashMap::new();
-        for token in tokens {
-            *counts.entry(token).or_insert(0usize) += 1;
-        }
-        let mut top: Vec<_> = counts.into_iter().collect();
-        top.sort_by(|a, b| b.1.cmp(&a.1));
-        top.into_iter()
-            .take(5)
-            .map(|(token, count)| format!("- `{}` appears {} times", token, count))
-            .collect()
-    }
-
-    fn build_plan(tokens: &[String], params: &DecodeParams) -> Vec<String> {
-        let mut plan = Vec::new();
-        if tokens.is_empty() {
-            return vec!["Analyze requirements".to_string()];
-        }
-
-        let unique: std::collections::HashSet<_> = tokens.iter().collect();
-        let mut idx = 1;
-        for token in unique.iter().take(4) {
-            plan.push(format!("{}. Investigate `{}` impact", idx, token));
-            idx += 1;
-        }
+    fn build_system_prompt(params: &DecodeParams) -> String {
         let temperature = params.temperature.unwrap_or(0.7);
-        let max_tokens = params.max_tokens.unwrap_or(2048);
-        plan.push(format!(
-            "{}. Allocate up to {} tokens with temperature {:.2}",
-            idx, max_tokens, temperature
-        ));
-        plan
+        let top_p = params.top_p.unwrap_or(0.9);
+        let top_k = params.top_k.unwrap_or(40);
+        let max_tokens = params.max_tokens.unwrap_or(1024);
+        let repetition_penalty = params.repetition_penalty.unwrap_or(1.05);
+
+        format!(
+            "You are the OHMS autonomous reasoning core. Produce detailed, executable guidance with concrete actions. \
+Respect temperature {temperature:.2}, top-p {top_p:.2}, top-k {top_k}, repetition penalty {repetition_penalty:.2}, \
+and keep the response within {max_tokens} tokens. Highlight assumptions, risks, and next steps when relevant."
+        )
     }
 
     fn format_context(context: &[(String, String)]) -> String {

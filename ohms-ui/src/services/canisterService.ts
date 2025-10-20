@@ -307,6 +307,20 @@ export interface ModelSummary {
   manifest?: SharedModelManifest
 }
 
+const FALLBACK_PRIMARY_MODEL: ModelSummary = {
+  info: {
+    model_id: 'llama3.1-8b',
+    version: 'ic-llm-remote',
+    state: 'Active',
+    quantization_format: { Custom: 'ic-llm' },
+    compression_ratio: undefined,
+    accuracy_retention: undefined,
+    size_bytes: BigInt(0),
+    uploaded_at: BigInt(0),
+    activated_at: undefined,
+  },
+}
+
 export interface AgentSummaryView {
   agentId: string
   agentType: SharedAgentType
@@ -361,19 +375,36 @@ const parseLoaderStats = (raw: string): AgentLoaderStats | undefined => {
 
 export const listModels = async (agentOverride?: HttpAgent): Promise<ModelSummary[]> => {
   const actor = agentOverride ? createModelActor(agentOverride) : modelCanister
-  const infos = await actor.list_models([])
-  const manifests = await Promise.all(
-    infos.map(async info => {
-      const manifestOpt = await actor.get_manifest(info.model_id)
-      const manifest = optionToValue(manifestOpt)
-      return manifest ? modelManifestToShared(manifest) : undefined
-    }),
-  )
 
-  return infos.map((info, index) => ({
-    info: modelInfoToShared(info),
-    manifest: manifests[index],
-  }))
+  try {
+    const infos = await actor.list_models([])
+    if (!infos.length) {
+      return [FALLBACK_PRIMARY_MODEL]
+    }
+
+    const manifests = await Promise.all(
+      infos.map(async info => {
+        const manifestOpt = await actor.get_manifest(info.model_id)
+        const manifest = optionToValue(manifestOpt)
+        return manifest ? modelManifestToShared(manifest) : undefined
+      }),
+    )
+
+    const summaries = infos.map((info, index) => ({
+      info: modelInfoToShared(info),
+      manifest: manifests[index],
+    }))
+
+    return summaries.length ? summaries : [FALLBACK_PRIMARY_MODEL]
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : typeof error === 'string' ? error : JSON.stringify(error)
+    const methodMissing = message.includes('has no query method') && message.includes('list_models')
+    if (methodMissing || message.includes('not found') || message.includes('400')) {
+      return [FALLBACK_PRIMARY_MODEL]
+    }
+    throw error instanceof Error ? error : new Error(message)
+  }
 }
 
 export const getModelManifest = async (
@@ -689,8 +720,24 @@ export const getUserSubscription = async (
   agentOverride?: HttpAgent,
 ): Promise<Optional<UserSubscription>> => {
   const actor = agentOverride ? createEconActor(agentOverride) : econCanister
-  const result = await actor.get_user_subscription(userPrincipal ? [userPrincipal] : [])
-  return optionToValue(result)
+
+  try {
+    const result = await actor.get_user_subscription(userPrincipal ? [userPrincipal] : [])
+    return optionToValue(result)
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : typeof error === 'string' ? error : JSON.stringify(error)
+
+    const methodNotFound =
+      message.includes('has no query method') && message.includes('get_user_subscription')
+
+    if (methodNotFound) {
+      // Legacy deployments may not yet expose get_user_subscription. Treat as no subscription.
+      return undefined
+    }
+
+    throw error
+  }
 }
 
 export const createSubscription = async (
@@ -699,11 +746,24 @@ export const createSubscription = async (
   agentOverride?: HttpAgent,
 ): Promise<UserSubscription> => {
   const actor = agentOverride ? createEconActor(agentOverride) : econCanister
-  const result = await actor.create_subscription(tier, autoRenew)
-  if ('Err' in result) {
-    throw new Error(result.Err)
+  try {
+    const result = await actor.create_subscription(tier, autoRenew)
+    if ('Err' in result) {
+      throw new Error(result.Err)
+    }
+    return result.Ok
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : typeof error === 'string' ? error : JSON.stringify(error)
+    const methodMissing =
+      message.includes('has no update method') && message.includes('create_subscription')
+
+    if (methodMissing) {
+      throw new Error('subscription_method_unavailable')
+    }
+
+    throw error instanceof Error ? error : new Error(message)
   }
-  return result.Ok
 }
 
 export const getPaymentRequest = async (
@@ -919,7 +979,11 @@ export const sendMessageToAgent = async (
   message: string,
   agentOverride?: HttpAgent,
 ): Promise<CandidInferenceResponse> => {
-  const actor = agentOverride ? createAgentActor(agentOverride) : agentCanister
+  if (!agentOverride) {
+    throw new Error('Authenticated agent is required to message an agent canister')
+  }
+
+  const actor = createAgentActor(agentOverride)
   const request: CandidInferenceRequest = {
     prompt: message,
     msg_id: `msg-${Date.now()}`,
@@ -928,7 +992,7 @@ export const sendMessageToAgent = async (
     temperature: [],
     top_p: [],
   }
-  await actor.bind_model(agentId)
+  unwrapEmpty(await actor.bind_model('llama3.1-8b'))
   return runInference(request, agentOverride)
 }
 
@@ -938,7 +1002,11 @@ export const bindAgentAndWireRoutes = async (
   agentOverride?: HttpAgent,
   coordinatorOverride?: HttpAgent,
 ): Promise<void> => {
-  const agentActor = agentOverride ? createAgentActor(agentOverride) : agentCanister
+  if (!agentOverride) {
+    throw new Error('Authenticated agent is required to bind models')
+  }
+
+  const agentActor = createAgentActor(agentOverride)
   const coordinatorActor = coordinatorOverride ? createCoordinatorActor(coordinatorOverride) : coordinatorCanister
 
   unwrapEmpty(await agentActor.bind_model(modelId))
@@ -973,6 +1041,10 @@ export const executeCoordinatorWorkflow = async (
   workflow: { id: string; nodes: Array<{ id: string; type: string; data: { config?: Record<string, unknown> } }> },
   agentOverride?: HttpAgent,
 ): Promise<CoordinatorWorkflowResult> => {
+  if (!agentOverride) {
+    throw new Error('Authenticated agent is required to execute coordinator workflows')
+  }
+
   const results: WorkflowNodeExecution[] = []
 
   for (const node of workflow.nodes) {

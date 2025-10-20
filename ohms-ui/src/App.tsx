@@ -42,7 +42,7 @@ function App() {
             <ParticleBackground />
             <div className="relative z-10">
               <Header />
-              <main className="container mx-auto px-4 py-8">
+              <main className="w-full px-4 py-8 md:px-8 xl:px-12 2xl:px-16">
                 <Routes>
                   {/* Home page - always accessible */}
                   <Route path="/" element={<Home />} />
@@ -150,4 +150,3 @@ function App() {
 }
 
 export default App
-

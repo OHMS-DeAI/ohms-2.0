@@ -280,11 +280,11 @@ const Agents = () => {
 
       {/* Model Information */}
       <Card className="mb-6 border-accentGold/30">
-        <h3 className="text-lg font-semibold mb-3 text-accentGold">Available Models</h3>
+        <h3 className="text-lg font-semibold mb-3 text-accentGold">Capacity Pools</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-3 bg-gray-800/50 rounded-lg">
-            <h4 className="font-medium text-white mb-1">Llama 3.1 8B</h4>
-            <p className="text-sm text-gray-400 mb-2">High-performance general-purpose AI model</p>
+            <h4 className="font-medium text-white mb-1">Primary Capacity</h4>
+            <p className="text-sm text-gray-400 mb-2">Managed instruction-tuned capacity optimized for OHMS agents</p>
             <div className="flex flex-wrap gap-1">
               <Badge variant="default" className="text-xs">Content Generation</Badge>
               <Badge variant="default" className="text-xs">Code Assistance</Badge>
@@ -293,7 +293,7 @@ const Agents = () => {
           </div>
         </div>
         <p className="text-xs text-gray-500 mt-3">
-          All agents use the Llama 3.1 8B model for now
+          All agents draw from the primary OHMS capacity pool
         </p>
       </Card>
 
@@ -493,17 +493,17 @@ const Agents = () => {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-textOnDark mb-2">
-              Select Model
+              Select Capacity Pool
             </label>
             <select
               value={agentConfig.model_id}
               onChange={(e) => setAgentConfig(prev => ({ ...prev, model_id: e.target.value }))}
               className="w-full px-3 py-2 bg-primary/60 border border-accentGold/40 rounded-lg text-textOnDark focus:outline-none focus:ring-2 focus:ring-accentGold/50"
             >
-              <option value="">Select a model...</option>
-              <option value="llama-3-8b-instruct">Llama 3 8B Instruct</option>
-              <option value="phi-3-mini-128k">Phi-3 Mini 128k</option>
-              <option value="mistral-7b-instruct">Mistral 7B Instruct</option>
+              <option value="">Select a capacity pool...</option>
+              <option value="llama-3-8b-instruct">Primary Capacity</option>
+              <option value="phi-3-mini-128k">Auxiliary Capacity A</option>
+              <option value="mistral-7b-instruct">Auxiliary Capacity B</option>
             </select>
           </div>
 

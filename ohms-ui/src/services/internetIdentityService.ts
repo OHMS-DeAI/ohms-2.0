@@ -1534,11 +1534,12 @@ export class InternetIdentityService {
       return null
     }
 
-    // Use the configured host directly, don't override to ic0.app
+    const boundaryHost = this.config.host === 'https://id.ai' ? HOST : this.config.host
+
     try {
       return new HttpAgent({
         identity: this.currentIdentity,
-        host: this.config.host,
+        host: boundaryHost,
         // Disable features that might cause CacheStorage issues
         disableCaching: true,
         fetchOptions: {
@@ -1552,7 +1553,7 @@ export class InternetIdentityService {
       })
       return new HttpAgent({
         identity: this.currentIdentity,
-        host: this.config.host
+        host: boundaryHost
       })
     }
   }

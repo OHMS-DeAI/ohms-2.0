@@ -89,7 +89,8 @@ impl InstructionAnalyzerService {
         let agent_count = Self::determine_agent_count(&instructions_lower, &required_capabilities);
 
         // Determine coordination needs
-        let coordination_needs = Self::determine_coordination_needs(&instructions_lower, agent_count);
+        let coordination_needs =
+            Self::determine_coordination_needs(&instructions_lower, agent_count);
 
         // Determine complexity level
         let complexity_level = Self::determine_complexity_level(agent_count, &coordination_needs);

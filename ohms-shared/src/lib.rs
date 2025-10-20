@@ -2,8 +2,8 @@
 // This module contains type definitions shared across all OHMS components
 
 pub mod communication;
-pub mod registry;
 pub mod llm_client;
+pub mod registry;
 pub mod types;
 
 use candid::{CandidType, Deserialize, Principal};

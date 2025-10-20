@@ -77,7 +77,7 @@ const Features = () => {
 const agent = await createAgent({
   instructions: "Create a Python coding assistant that can help with data science projects",
   capabilities: ["code_generation", "debugging", "documentation"],
-  model: "llama3.1-8b"
+  model: "auto"
 });`,
         benefits: [
           'Natural language to AI conversion',
@@ -191,7 +191,7 @@ const workflow = {
         codeExample: `// Use advanced AI directly
 const response = await aiService.generate({
   prompt: "Analyze this data",
-  model: "llama-3.1-8b",
+  model: "auto",
   privacy_level: "encrypted"
 });`,
         benefits: [
@@ -225,7 +225,7 @@ const optimizedModel = await selectModel({
         demo: 'fine-tuning',
         codeExample: `// Fine-tune for specific domain
 const fineTunedModel = await fineTuneModel({
-  base_model: "llama3.1-8b",
+  base_model: "auto",
   training_data: domainData,
   domain: "medical_diagnosis",
   validation_set: validationData

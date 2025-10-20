@@ -112,7 +112,7 @@ export default function StructuredData({ type = 'website' }: StructuredDataProps
         ],
         featureList: [
           'AI Agent Creation from Natural Language',
-          'NOVAQ Model Compression Technology',
+          'Secure HTTPS LLM Outcalls',
           'Internet Computer Blockchain',
           'Autonomous Agent Networks',
           'Subscription-based Economics'

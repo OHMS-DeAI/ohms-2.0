@@ -3,6 +3,7 @@ export const NAVIGATION_LINKS = [
   { name: 'Features', href: '/features' },
   { name: 'About', href: '/about' },
   { name: 'Pricing', href: '/pricing' },
+  { name: 'FAQ', href: '/faq' },
   { name: 'Team', href: '/team' },
   { name: 'App', href: 'https://xg5yr-zaaaa-aaaah-qqe5a-cai.icp0.io/', external: true },
 ]
@@ -18,40 +19,40 @@ export const FEATURES = [
   {
     icon: 'brain',
     title: 'Instruction-Based Agent Creation',
-    description: 'Create autonomous AI agents from simple natural language instructions. No coding required - just describe what you need and OHMS generates intelligent agents.'
-  },
-  {
-    icon: 'zap',
-    title: 'NOVAQ Model Compression',
-    description: 'Revolutionary 93-100x AI model compression with 99%+ capability retention. Democratized access to advanced AI compression technology for everyone.'
+    description: 'Create autonomous AI agents from natural language instructions with configurable policies, tools, and guardrails.'
   },
   {
     icon: 'shield',
     title: 'Internet Computer Protocol',
-    description: 'Built on ICP blockchain for true decentralization, censorship resistance, and autonomous operation without traditional cloud dependencies.'
+    description: 'Built on the Internet Computer for transparent, tamper-evident coordination, storage, and billing.'
+  },
+  {
+    icon: 'zap',
+    title: 'Secure LLM Outcalls',
+    description: 'Invoke external LLM endpoints via hardened HTTPS outcalls so you can bring your own provider while staying fully on-chain.'
   },
   {
     icon: 'cpu',
     title: 'Subscription Economics',
-    description: 'Transparent pricing with agent quotas, monthly creation limits, and usage tracking. Scale from Basic to Enterprise tiers as your needs grow.'
+    description: 'Transparent usage-based billing with quotas, receipts, and tiered plans enforced by canisters.'
   },
   {
     icon: 'users',
     title: 'Autonomous Agent Networks',
-    description: 'Self-coordinating multi-agent systems that work together intelligently, requiring minimal human intervention once deployed.'
+    description: 'Self-coordinating multi-agent systems that plan, act, and hand off tasks with minimal human oversight.'
   },
   {
     icon: 'database',
-    title: 'Admin-Curated Quality',
-    description: 'Professional model curation ensures reliability and performance. All models are validated and optimized before platform deployment.'
+    title: 'Operator Controls',
+    description: 'Central registry for prompts, tools, and integrations so teams can enforce guardrails and quality.'
   },
 ]
 
 export const STATS = [
-  { label: 'Compression Ratio', value: '93-100x' },
-  { label: 'Model Capability Retention', value: '99%+' },
-  { label: 'ICP Blockchain Powered', value: '100%' },
-  { label: 'Agent Creation Time', value: '2min' },
+  { label: 'LLM Providers Supported', value: '10+' },
+  { label: 'On-Chain Operations', value: '100%' },
+  { label: 'Coordination Latency', value: '<1s' },
+  { label: 'Agent Setup Time', value: '2min' },
 ]
 
 export const PRICING_TIERS = [
@@ -64,7 +65,7 @@ export const PRICING_TIERS = [
       'Up to 5 concurrent agents',
       '10 monthly agent creations',
       '100K processing tokens',
-      'Standard NOVAQ models',
+      'Standard LLM connectors',
       'Community support',
       'Basic analytics dashboard',
       'ICP blockchain deployment'
@@ -81,7 +82,7 @@ export const PRICING_TIERS = [
       'Up to 25 concurrent agents',
       '50 monthly agent creations',
       '500K processing tokens',
-      'Premium NOVAQ models',
+      'Priority HTTPS provider routing',
       'Priority support',
       'Advanced analytics',
       'Custom agent templates',
@@ -99,7 +100,7 @@ export const PRICING_TIERS = [
       'Up to 100 concurrent agents',
       '200 monthly agent creations',
       '2M processing tokens',
-      'Custom NOVAQ models',
+      'Custom provider integrations',
       '24/7 dedicated support',
       'Enterprise analytics',
       'White-label deployment',
@@ -121,6 +122,7 @@ export const FOOTER_LINKS = {
   product: [
     { name: 'Features', href: '/features' },
     { name: 'Pricing', href: '/pricing' },
+    { name: 'FAQ', href: '/faq' },
     { name: 'Documentation', href: '/docs' },
     { name: 'API Reference', href: '/api' },
   ],
@@ -142,8 +144,8 @@ export const OHMS_APP_URL = 'https://xg5yr-zaaaa-aaaah-qqe5a-cai.icp0.io/' // OH
 
 export const METADATA = {
   title: 'OHMS - Revolutionary Autonomous AI Agent Platform | Create Agents from Instructions',
-  description: 'Transform your business with OHMS - the subscription-based autonomous AI agent platform. Create intelligent agents from natural language instructions, powered by NOVAQ compression technology and Internet Computer Protocol. 93-100x model compression with 99%+ capability retention.',
-  keywords: 'AI agents, autonomous AI, agent platform, NOVAQ compression, Internet Computer, ICP, subscription AI, natural language agents, decentralized AI, agent orchestration, AI model compression, blockchain AI, smart agents, AI automation, agent creation platform',
+  description: 'Transform your business with OHMS - the subscription-based autonomous AI agent platform. Create intelligent agents from natural language instructions, orchestrate them entirely on the Internet Computer, and connect to external LLM providers through secure HTTPS outcalls.',
+  keywords: 'AI agents, autonomous AI, agent platform, HTTPS outcalls, Internet Computer, ICP, subscription AI, natural language agents, decentralized AI, agent orchestration, LLM integration, blockchain AI, smart agents, AI automation, agent creation platform',
   author: 'OHMS Team',
   ogImage: '/og-image.jpg',
   siteName: 'OHMS - Autonomous AI Agent Platform',

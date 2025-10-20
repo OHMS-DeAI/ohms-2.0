@@ -1,0 +1,17 @@
+{
+  "ohms_agent": {
+    "ic": "5gsec-daaaa-aaaah-ark7q-cai"
+  },
+  "ohms_coordinator": {
+    "ic": "wyew4-yiaaa-aaaah-arlaa-cai"
+  },
+  "ohms_econ": {
+    "ic": "w7fqi-vqaaa-aaaah-arlaq-cai"
+  },
+  "ohms_model": {
+    "ic": "wwg3u-dyaaa-aaaah-arlba-cai"
+  },
+  "ohms_ui": {
+    "ic": "wrh5a-oaaaa-aaaah-arlbq-cai"
+  }
+}

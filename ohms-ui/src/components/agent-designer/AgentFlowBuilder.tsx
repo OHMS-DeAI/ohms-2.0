@@ -2,20 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import ReactFlow, {
   Background,
-  Connection,
   Controls,
-  Edge,
   MarkerType,
   MiniMap,
-  Node,
-  NodeProps,
   Position,
-  ReactFlowInstance,
   addEdge,
   Handle,
   useEdgesState,
   useNodesState,
 } from 'reactflow'
+import type { Connection, Edge, Node, NodeProps, ReactFlowInstance } from 'reactflow'
 import Input from '../Input'
 import Textarea from '../Textarea'
 import Button from '../Button'

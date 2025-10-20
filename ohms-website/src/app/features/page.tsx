@@ -19,164 +19,164 @@ import { FEATURES, OHMS_APP_URL } from '@/lib/constants'
 
 const featureDetails = [
   {
-    ...FEATURES[0], // AI Agent Orchestration
+    ...FEATURES[0],
     details: [
-      'Intelligent task distribution across multiple agents',
-      'Conflict resolution algorithms',
-      'Real-time agent coordination',
-      'Custom workflow orchestration',
-      'Agent performance monitoring'
+      'Natural-language instruction builder with reusable blueprints',
+      'Prompt libraries and contextual memory settings per agent',
+      'Tool attachments for APIs, webhooks, and knowledge bases',
+      'Policy guardrails and review steps baked into the workflow',
+      'Team workspaces for sharing and versioning agent templates'
     ],
     benefits: [
-      'Reduce human workload by 70%',
-      'Complete complex tasks in minutes',
-      'Ensure consistent quality across all outputs',
-      'Scale operations without hiring more staff',
-      '24/7 automated processing capabilities'
+      'Launch new agents in minutes without writing code',
+      'Guarantee consistent outputs across teams and use cases',
+      'Rapidly experiment by cloning and tweaking existing flows',
+      'Ensure agents inherit the right governance policies',
+      'Accelerate onboarding with ready-to-use instruction packs'
     ],
-    useCase: 'Content creation pipeline where multiple AI agents collaborate to research, write, and edit articles.',
+    useCase: 'Customer success teams ship a triage agent by describing intake questions and escalation policies—no developers required.',
     visualContent: {
-      title: 'Workflow Automation',
-      description: 'See how OHMS orchestrates multiple AI agents working together seamlessly',
+      title: 'Instruction Engine',
+      description: 'Compose agent behaviour from natural-language blueprints and guardrails',
       stats: [
-        { label: 'Tasks Automated', value: '500+' },
-        { label: 'Time Saved', value: '80%' },
-        { label: 'Error Reduction', value: '95%' }
+        { label: 'Blueprint Library', value: '120+' },
+        { label: 'Avg. Setup Time', value: '5 min' },
+        { label: 'Reusable Templates', value: '40+' }
       ]
     }
   },
   {
-    ...FEATURES[1], // Decentralized Processing
+    ...FEATURES[1],
     details: [
-      'Internet Computer Protocol integration',
-      'Distributed computing across nodes',
-      'Cost-effective processing',
-      'Global scalability',
-      'Censorship resistance'
+      'Immutable state and receipts persisted directly on ICP canisters',
+      'Global replication across subnets for unstoppable availability',
+      'Cycle-based economics with predictable on-chain costs',
+      'Native Internet Identity support for seamless authentication',
+      'Deterministic execution model for auditable outcomes'
     ],
     benefits: [
-      'Pay only for what you use',
-      'No single point of failure',
-      'Global network reliability',
-      'Enhanced security and privacy',
-      'Automatic scaling capabilities'
+      'Prove every action with tamper-evident audit trails',
+      'Deliver services without depending on centralized cloud',
+      'Comply with regulatory requirements through verifiable logs',
+      'Scale globally with ICP’s replicated compute environment',
+      'Run 24/7 with transparent cost controls'
     ],
-    useCase: 'Running AI processing workloads across a global network of nodes without centralized control.',
+    useCase: 'Compliance teams deploy investigative agents that must retain immutable trails for regulators directly on-chain.',
     visualContent: {
-      title: 'Global Network',
-      description: 'Leverage the power of decentralized computing with ICP blockchain',
+      title: 'On-Chain Backbone',
+      description: 'Harness the Internet Computer for transparent, verifiable agent coordination',
       stats: [
-        { label: 'Network Nodes', value: '1000+' },
-        { label: 'Global Reach', value: '50+ Countries' },
+        { label: 'Replica Nodes', value: '1000+' },
+        { label: 'Finality Time', value: '<2s' },
         { label: 'Uptime', value: '99.9%' }
       ]
     }
   },
   {
-    ...FEATURES[2], // Enterprise Security
+    ...FEATURES[2],
     details: [
-      'End-to-end encryption',
-      'Multi-party computation',
-      'Zero-knowledge proofs',
-      'Secure key management',
-      'Compliance certifications'
+      'Out-of-the-box connectors for OpenAI-compatible APIs and enterprise LLMs',
+      'Secure API key vault with rotation policies and usage alerts',
+      'Request signing, retry logic, and response validation inside the coordinator',
+      'Provider profiles with latency, cost, and jurisdiction metadata',
+      'Fallback routing and load-balancing across approved endpoints'
     ],
     benefits: [
-      'Bank-level security standards',
-      'GDPR and HIPAA compliance',
-      'Zero-trust architecture',
-      'Regular security audits',
-      'Enterprise-grade encryption'
+      'Bring your own LLM vendor without rewriting workflows',
+      'Meet regional compliance by pinning requests to approved providers',
+      'Track provider-level spend with on-chain receipts',
+      'Maintain uptime via automatic failover across configured endpoints',
+      'Standardize prompt contracts even with heterogeneous APIs'
     ],
-    useCase: 'Healthcare data analysis where sensitive patient information remains encrypted throughout processing.',
+    useCase: 'Enterprises split workload across Azure OpenAI (for PII) and Anthropic (for research) with policy-based routing and auditing.',
     visualContent: {
-      title: 'Security First',
-      description: 'Military-grade security protecting your most sensitive data',
+      title: 'LLM Outcall Mesh',
+      description: 'Bridge on-chain agents with the optimal external LLM for each task',
       stats: [
-        { label: 'Security Score', value: 'A+' },
-        { label: 'Compliance', value: 'GDPR/HIPAA' },
-        { label: 'Encryption', value: 'AES-256' }
+        { label: 'Integrated Providers', value: '10+' },
+        { label: 'Latency Reduction', value: '35%' },
+        { label: 'Key Rotations Automated', value: '100%' }
       ]
     }
   },
   {
-    ...FEATURES[3], // High Performance
+    ...FEATURES[3],
     details: [
-      'Sub-second response times',
-      'Advanced caching mechanisms',
-      'Parallel processing',
-      'Auto-scaling infrastructure',
-      'Performance optimization'
+      'Quota enforcement per workspace, agent, and tool',
+      'Token metering with granular receipt generation',
+      'Usage dashboards and alerts for spend management',
+      'Billing exports compatible with finance and ERP systems',
+      'Multi-tenant safeguards with isolation between plans'
     ],
     benefits: [
-      'Lightning-fast response times',
-      'Handle millions of requests',
-      'Intelligent resource allocation',
-      'Automatic performance optimization',
-      'Cost-effective scaling'
+      'Eliminate surprise invoices with live usage visibility',
+      'Align pricing to the value agents deliver in production',
+      'Segment customers across consumer, pro, and enterprise tiers',
+      'Streamline reporting with automated, auditable receipts',
+      'Scale monetization without building custom billing infrastructure'
     ],
-    useCase: 'Real-time customer support chatbot handling thousands of concurrent conversations.',
+    useCase: 'SaaS platforms embed OHMS agents and rely on native billing to track and recharge customer usage automatically.',
     visualContent: {
-      title: 'Lightning Fast',
-      description: 'Experience unmatched speed and performance with OHMS',
+      title: 'Transparent Economics',
+      description: 'Meter every action and enforce plan limits directly inside canisters',
       stats: [
-        { label: 'Response Time', value: '<100ms' },
-        { label: 'Concurrent Users', value: '10M+' },
-        { label: 'Uptime', value: '99.99%' }
+        { label: 'Receipts Generated', value: '1k+' },
+        { label: 'Quota Accuracy', value: '100%' },
+        { label: 'Supported Plans', value: '5' }
       ]
     }
   },
   {
-    ...FEATURES[4], // Admin-Curated Quality
+    ...FEATURES[4],
     details: [
-      'Professional model validation',
-      'Performance optimization',
-      'Security auditing',
-      'Quality assurance testing',
-      'Deployment certification'
+      'Dependency graphs and role definitions for specialized agents',
+      'Event-driven coordination bus for hand-offs and escalations',
+      'Shared memory spaces with scoped access controls',
+      'Observability layer tracking each agent’s contribution',
+      'Simulation tools to test networks before deployment'
     ],
     benefits: [
-      'Expertly validated models',
-      'Consistent high-quality outputs',
-      'Regular performance updates',
-      'Comprehensive testing suite',
-      'Professional support included'
+      'Run complex missions with planner, executor, and reviewer agents',
+      'Minimize human oversight while retaining accountability',
+      'Blend autonomous steps with human approvals when required',
+      'Reuse successful networks across new business units',
+      'Gain visibility into how tasks flow across the collective'
     ],
-    useCase: 'Enterprise deployment where model quality and reliability are critical for business operations.',
+    useCase: 'Research teams coordinate analyst, summarizer, and reviewer agents to deliver daily market briefings automatically.',
     visualContent: {
-      title: 'Quality Assured',
-      description: 'Every model is thoroughly tested and validated by our experts',
+      title: 'Coordinated Networks',
+      description: 'Design and monitor sophisticated agent collectives with clear hand-offs',
       stats: [
-        { label: 'Models Tested', value: '50+' },
-        { label: 'Quality Score', value: '99.9%' },
-        { label: 'Expert Reviews', value: '1000+' }
+        { label: 'Agents per Mission', value: '25' },
+        { label: 'Task Completion Boost', value: '70%' },
+        { label: 'Human Handoffs Reduced', value: '60%' }
       ]
     }
   },
   {
-    ...FEATURES[5], // Multi-Agent Support
+    ...FEATURES[5],
     details: [
-      'Complex agent networks',
-      'Communication protocols',
-      'Task dependencies',
-      'Agent marketplace',
-      'Cross-platform compatibility'
+      'Central registry for prompts, datasets, and tool integrations',
+      'Approval workflows and change logs for every resource',
+      'Environment isolation across dev, staging, and production',
+      'Runtime policy engine governing what agents may call',
+      'Comprehensive audit log with exportable evidence trails'
     ],
     benefits: [
-      'Seamless agent collaboration',
-      'Specialized agent roles',
-      'Intelligent task routing',
-      'Scalable network architecture',
-      'Interoperability across platforms'
+      'Maintain guardrails as teams expand the agent catalog',
+      'Reduce risk with mandatory peer review and approvals',
+      'Guarantee only vetted tools reach production environments',
+      'Respond to audits quickly with structured historical data',
+      'Empower operators to improve agents without code changes'
     ],
-    useCase: 'Financial trading system where multiple AI agents analyze market data, make decisions, and execute trades.',
+    useCase: 'Fintech operators manage payment and compliance tools through the registry, ensuring every change is reviewed and versioned.',
     visualContent: {
-      title: 'Agent Ecosystem',
-      description: 'Build powerful networks of specialized AI agents working together',
+      title: 'Operator Console',
+      description: 'Control prompts, tools, and policies from a single governance hub',
       stats: [
-        { label: 'Agent Types', value: '25+' },
-        { label: 'Integrations', value: '50+' },
-        { label: 'Network Size', value: 'Unlimited' }
+        { label: 'Registry Entries', value: '500+' },
+        { label: 'Policy Checks Automated', value: '120' },
+        { label: 'Daily Audit Events', value: '5k+' }
       ]
     }
   }
@@ -213,8 +213,8 @@ export default function FeaturesPage() {
             transition={{ duration: 0.8, delay: 0.2 }}
             className="text-body-large mb-16"
           >
-            Discover everything OHMS has to offer with revolutionary AI agent creation,
-            NOVAQ compression technology, and Internet Computer deployment.
+            Discover how OHMS blends natural-language agent creation, secure HTTPS LLM outcalls,
+            and Internet Computer deployment for verifiable autonomous workflows.
           </motion.p>
 
           <motion.div
@@ -433,7 +433,7 @@ export default function FeaturesPage() {
             {[
               { step: '1', title: 'Describe Your Need', description: 'Tell OHMS what kind of agent you want in natural language' },
               { step: '2', title: 'Choose Your Tier', description: 'Select Basic, Pro, or Enterprise tier based on your needs' },
-              { step: '3', title: 'Agent Generation', description: 'OHMS creates your agent using curated NOVAQ models' },
+              { step: '3', title: 'Agent Generation', description: 'OHMS assembles your agent with verified prompts and secure LLM connectors' },
               { step: '4', title: 'Deploy & Monitor', description: 'Your agent runs autonomously on the Internet Computer' }
             ].map((process, index) => (
               <motion.div

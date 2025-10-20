@@ -1,0 +1,4 @@
+ignoredBuiltDependencies:
+  - '@tsparticles/engine'
+  - sharp
+  - unrs-resolver

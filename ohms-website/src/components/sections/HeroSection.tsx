@@ -36,7 +36,7 @@ export default function HeroSection() {
             transition={{ duration: 0.8, delay: 0.2 }}
             className="text-body-large mb-16"
           >
-            Revolutionary autonomous AI agent platform powered by NOVAQ compression technology. 
+            Revolutionary autonomous AI agent platform that connects secure HTTPS outcalls to your preferred LLM providers. 
             Transform natural language instructions into intelligent, self-coordinating agents on the Internet Computer.
           </motion.p>
 
@@ -82,8 +82,8 @@ export default function HeroSection() {
               <div className="w-16 h-16 bg-gradient-to-br from-secondary/20 to-secondary/30 rounded-2xl flex items-center justify-center mb-6 mx-auto">
                 <span className="text-3xl">⚡</span>
               </div>
-              <h3 className="heading-tertiary">NOVAQ Compression</h3>
-              <p className="text-body">Revolutionary 93-100x AI model compression with 99%+ capability retention for everyone</p>
+              <h3 className="heading-tertiary">Secure LLM Outcalls</h3>
+              <p className="text-body">Bring your own OpenAI-compatible or enterprise LLM endpoints through hardened HTTPS outcalls</p>
             </div>
 
             <div className="feature-card hover:bg-accent/5 border border-accent/10">

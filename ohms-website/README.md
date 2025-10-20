@@ -18,7 +18,7 @@ Create an exceptional marketing experience that:
 - **Showcases** the revolutionary OHMS 2.0 autonomous agent platform
 - **Educates** visitors about the power of instruction-based AI creation
 - **Converts** interested users into active OHMS platform subscribers
-- **Demonstrates** the technical innovation behind NOVAQ compression
+- **Highlights** the secure HTTPS outcall mesh for connecting preferred LLM providers
 - **Communicates** the vision of democratized, on-chain AI intelligence
 
 ## 🏗️ Architecture Overview
@@ -96,7 +96,7 @@ journey
         Watch Value Proposition Video: 5: Visitor
         Explore Interactive Demo: 5: Visitor
     section Engagement
-        Learn About NOVAQ Technology: 4: Visitor
+        Learn About Secure LLM Outcalls: 4: Visitor
         Understand Agent Creation Process: 4: Visitor
         Review Pricing Tiers: 5: Visitor
         Read Technical Documentation: 3: Visitor
@@ -164,7 +164,7 @@ graph LR
 - **Feature Grid**: Interactive showcase of OHMS capabilities with hover effects
 - **Demo Section**: Embedded interactive agent creation simulation
 - **Pricing Cards**: Transparent pricing with clear feature comparisons
-- **Technology Showcase**: Visual explanation of NOVAQ compression technology
+- **Technology Showcase**: Visual storytelling for provider-agnostic HTTPS LLM outcalls
 - **Social Proof**: Community testimonials and adoption metrics
 
 ## 📊 Performance & Technical Excellence
@@ -245,7 +245,7 @@ The website implements comprehensive SEO optimization including:
 graph LR
     subgraph "Content Pillars"
         Platform[OHMS Platform]
-        Technology[NOVAQ Technology]
+        Technology[Secure LLM Outcalls]
         Vision[OHMS Vision]
         Community[Community]
     end

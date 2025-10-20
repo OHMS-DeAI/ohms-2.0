@@ -63,21 +63,21 @@ function App() {
                       <ModelChat />
                     </ProtectedRoute>
                   } />
-                  <Route path="/coordinator" element={
+                  {/* <Route path="/coordinator" element={
                     <ProtectedRoute>
                       <Coordinator />
                     </ProtectedRoute>
-                  } />
+                  } /> */}
                   <Route path="/agents" element={
                     <ProtectedRoute>
                       <Agents />
                     </ProtectedRoute>
                   } />
-                  <Route path="/economics" element={
+                  {/* <Route path="/economics" element={
                     <ProtectedRoute>
                       <Economics />
                     </ProtectedRoute>
-                  } />
+                  } /> */}
                   <Route path="/create-agent" element={
                     <ProtectedRoute>
                       <UserAgentCreator />
@@ -88,12 +88,12 @@ function App() {
                       <Verify />
                     </ProtectedRoute>
                   } />
-                  <Route path="/orchestrate" element={
+                  {/* <Route path="/orchestrate" element={
                     <ProtectedRoute>
                       <MultiAgentOrchestrator />
                     </ProtectedRoute>
-                  } />
-                  <Route path="/orchestrate/:taskId" element={
+                  } /> */}
+                  {/* <Route path="/orchestrate/:taskId" element={
                     <ProtectedRoute>
                       <TaskDetailView />
                     </ProtectedRoute>
@@ -102,7 +102,7 @@ function App() {
                     <ProtectedRoute>
                       <LLMSettings />
                     </ProtectedRoute>
-                  } />
+                  } /> */}
 
                   {/* Admin Routes - require admin authentication */}
                   <Route path="/admin" element={

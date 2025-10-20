@@ -23,8 +23,8 @@ export default function Footer() {
               <span className="text-xl font-bold gradient-text-primary">OHMS</span>
             </div>
             <p className="text-body mb-6 max-w-md">
-              Revolutionary autonomous AI agent platform. Transform natural language instructions 
-              into intelligent agents powered by NOVAQ compression and Internet Computer technology.
+              Revolutionary autonomous AI agent platform. Turn natural language instructions 
+              into intelligent agents that coordinate on-chain and connect to external LLMs through secure HTTPS outcalls.
             </p>
             <div className="flex space-x-4">
               {SOCIAL_LINKS.map((social) => {

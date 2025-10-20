@@ -51,11 +51,11 @@ const Header = () => {
   // Streamlined navigation - essential items only
   const userNav: NavigationItem[] = [
     { name: 'Home', href: '/', current: location.pathname === '/', external: false },
-    { name: 'Orchestrate', href: '/orchestrate', current: location.pathname.startsWith('/orchestrate'), external: false },
+    // { name: 'Orchestrate', href: '/orchestrate', current: location.pathname.startsWith('/orchestrate'), external: false },
     { name: 'Chat with AI', href: '/chat', current: location.pathname === '/chat', external: false },
-    { name: 'Coordinator', href: '/coordinator', current: location.pathname === '/coordinator', external: false },
+    // { name: 'Coordinator', href: '/coordinator', current: location.pathname === '/coordinator', external: false },
     { name: 'Create Agents', href: '/create-agent', current: location.pathname === '/create-agent', external: false },
-    { name: 'My Agents', href: '/agents', current: location.pathname === '/agents', external: false },
+    // { name: 'My Agents', href: '/agents', current: location.pathname === '/agents', external: false },
   ]
 
   // Admin navigation - dynamically loaded based on user context

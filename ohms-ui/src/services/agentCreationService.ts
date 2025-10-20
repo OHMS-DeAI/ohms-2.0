@@ -336,7 +336,7 @@ export class AgentCreationService implements EventEmitter<AgentCreationEvent> {
 
       // Use the working direct LLM service pattern
       const { createDirectLlmService } = await import('./directLlmService');
-      const llmService = createDirectLlmService();
+      const llmService = createDirectLlmService(agent);
       
       const response = await llmService.chatWithAgent(agentId, message);
       return response.success && response.content.length > 0;

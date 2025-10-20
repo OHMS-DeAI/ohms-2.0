@@ -1,9 +1,16 @@
 'use client'
 
 import { motion } from 'framer-motion'
+import { useRouter } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
 import { OHMS_APP_URL } from '@/lib/constants'
 import Button from '@/components/ui/Button'
+
+interface CTAButtonConfig {
+  label: string
+  href: string
+  external?: boolean
+}
 
 interface CTASectionProps {
   title?: string
@@ -11,17 +18,41 @@ interface CTASectionProps {
   primaryButtonText?: string
   secondaryButtonText?: string
   showSecondaryButton?: boolean
+  primaryCta?: CTAButtonConfig
+  secondaryCta?: CTAButtonConfig | null
 }
 
 export default function CTASection({
-  title = "Ready to Transform Your AI Workflow?",
-  subtitle = "Join thousands of developers building the future of autonomous AI agents. Start your journey with OHMS today.",
-  primaryButtonText = "Launch OHMS",
-  secondaryButtonText = "View Documentation",
+  title = 'Ready to Transform Your AI Workflow?',
+  subtitle = 'Join thousands of developers building the future of autonomous AI agents. Start your journey with OHMS today.',
+  primaryButtonText = 'Launch OHMS',
+  secondaryButtonText = 'View Documentation',
   showSecondaryButton = true,
+  primaryCta,
+  secondaryCta,
 }: CTASectionProps) {
-  const launchOHMS = () => {
-    window.open(OHMS_APP_URL, '_blank')
+  const router = useRouter()
+
+  const defaultPrimary: CTAButtonConfig = {
+    label: primaryButtonText,
+    href: OHMS_APP_URL,
+    external: true,
+  }
+
+  const defaultSecondary: CTAButtonConfig | null =
+    showSecondaryButton ? { label: secondaryButtonText, href: '' } : null
+
+  const resolvedPrimary = primaryCta ?? defaultPrimary
+  const resolvedSecondary =
+    secondaryCta === null ? null : secondaryCta ?? defaultSecondary
+
+  const handleNavigate = (cta: CTAButtonConfig) => {
+    if (!cta.href) return
+    if (cta.external ?? cta.href.startsWith('http')) {
+      window.open(cta.href, '_blank')
+      return
+    }
+    router.push(cta.href)
   }
 
   return (
@@ -62,27 +93,34 @@ export default function CTASection({
             className="flex flex-col sm:flex-row gap-4 justify-center items-center"
           >
             <Button
-              onClick={launchOHMS}
+              onClick={() => handleNavigate(resolvedPrimary)}
               size="lg"
-              external
+              external={resolvedPrimary.external}
               className="bg-gradient-to-r from-primary to-secondary hover:from-primary/80 hover:to-secondary/80"
             >
-              {primaryButtonText}
+              {resolvedPrimary.label}
             </Button>
 
-            {showSecondaryButton && (
+            {resolvedSecondary && (
               <Button
                 variant="outline"
                 size="lg"
                 className="group"
+                onClick={
+                  resolvedSecondary.href
+                    ? () => handleNavigate(resolvedSecondary)
+                    : undefined
+                }
               >
-                {secondaryButtonText}
-                <ArrowRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                {resolvedSecondary.label}
+                <ArrowRight
+                  size={16}
+                  className="ml-2 group-hover:translate-x-1 transition-transform"
+                />
               </Button>
             )}
           </motion.div>
 
-          {/* Additional Benefits */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}

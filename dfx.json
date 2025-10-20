@@ -29,6 +29,16 @@
         "entrypoint": "ohms-ui/index.html"
       },
       "build": "cd ohms-ui && pnpm run build"
+    },
+    "ohms_website": {
+      "type": "assets",
+      "source": [
+        "ohms-website/out"
+      ],
+      "frontend": {
+        "entrypoint": "ohms-website/out/index.html"
+      },
+      "build": "cd ohms-website && pnpm run build"
     }
   },
   "defaults": {

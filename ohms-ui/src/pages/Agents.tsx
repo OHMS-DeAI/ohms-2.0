@@ -210,8 +210,13 @@ const Agents = () => {
     setCurrentMessage('')
 
     try {
+      const authAgent = await createAuthAgent()
+      if (!authAgent) {
+        throw new Error('Authentication required')
+      }
+
       // Use Direct LLM Service to make agents actually work
-      const llmService = createDirectLlmService()
+      const llmService = createDirectLlmService(authAgent)
       const response = await llmService.chatWithAgent(selectedAgent.agent_id, messageToSend)
 
       // Add assistant response

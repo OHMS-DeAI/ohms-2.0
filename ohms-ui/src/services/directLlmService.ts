@@ -21,6 +21,11 @@ const getAgentCanisterId = (): string => {
 // Agent canister IDL interface
 const agentCanisterIdl = ({ IDL }: any) => {
   return IDL.Service({
+    bind_model: IDL.Func(
+      [IDL.Text],
+      [IDL.Variant({ Ok: IDL.Null, Err: IDL.Text })],
+      []
+    ),
     infer: IDL.Func(
       [IDL.Record({
         seed: IDL.Nat64,
@@ -66,30 +71,13 @@ export interface LlmResponse {
 export class DirectLlmService {
   private actor: any
 
-  constructor(agent?: HttpAgent) {
-    // Create HTTP agent with error handling for CacheStorage issues
-    let httpAgent = agent
-    if (!httpAgent) {
-      try {
-        httpAgent = new HttpAgent({
-          host: 'https://ic0.app',
-          // Disable features that might cause CacheStorage issues
-          disableCaching: true,
-          fetchOptions: {
-            cache: 'no-store'
-          }
-        })
-      } catch (error) {
-        // Fallback configuration if caching features cause issues
-        console.warn('Failed to create agent with caching disabled, trying fallback', {
-          error: error instanceof Error ? error.message : 'Unknown error'
-        })
-        httpAgent = new HttpAgent({ host: 'https://ic0.app' })
-      }
+  constructor(agent: HttpAgent) {
+    if (!agent) {
+      throw new Error('Authenticated agent is required for direct LLM access')
     }
 
     this.actor = Actor.createActor(agentCanisterIdl, {
-      agent: httpAgent,
+      agent,
       canisterId: getAgentCanisterId(),
     })
   }
@@ -130,6 +118,11 @@ export class DirectLlmService {
         prompt += `User: ${currentUserMessage.content}\n\nAssistant:`
       }
 
+      const bindResult = await this.actor.bind_model('llama3.1-8b')
+      if (bindResult.Err) {
+        throw new Error(bindResult.Err)
+      }
+
       // Call the agent canister's infer method
       const response = await this.actor.infer({
         seed: BigInt(Math.floor(Math.random() * 1000000)),
@@ -156,7 +149,6 @@ export class DirectLlmService {
         success: true
       }
     } catch (error: any) {
-      console.error('Agent canister call failed:', error)
       return {
         content: `I apologize, but I'm currently unable to respond due to a technical issue: ${error.message}`,
         success: false,
@@ -206,15 +198,18 @@ async getAgentStatus(agentId: string): Promise<{online: boolean, model: string}>
 /**
  * Create a direct LLM service instance
  */
-export const createDirectLlmService = (agent?: HttpAgent) => {
+export const createDirectLlmService = (agent: HttpAgent) => {
   return new DirectLlmService(agent)
 }
 
 /**
  * Utility function to test if an agent is responsive
  */
-export const testAgentResponse = async (agentId: string, agent?: HttpAgent): Promise<boolean> => {
+export const testAgentResponse = async (agentId: string, agent: HttpAgent): Promise<boolean> => {
   try {
+    if (!agent) {
+      throw new Error('Authenticated agent is required to test agent responsiveness')
+    }
     const llmService = createDirectLlmService(agent)
     const response = await llmService.chatWithAgent(agentId, "Hello! Can you respond?")
     return response.success && response.content.length > 0

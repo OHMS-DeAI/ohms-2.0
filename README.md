@@ -9,17 +9,29 @@
 **Subscription-based AI agent platform that turns natural language instructions into autonomous agents, orchestrated entirely on-chain and powered by Internet Computer HTTPS outcalls to external LLM providers.**
 
 <div align="center">
-  <p><em>Watch the OHMS 2.0 pitch deck</em></p>
-  <a href="https://youtu.be/SfzO_ixs4Ao" target="_blank" rel="noopener noreferrer">
-    <img src="https://img.youtube.com/vi/SfzO_ixs4Ao/maxresdefault.jpg" alt="Watch the OHMS 2.0 pitch deck" width="720">
-  </a>
+  <iframe
+    width="720"
+    height="405"
+    src="https://www.youtube.com/embed/SfzO_ixs4Ao"
+    title="OHMS 2.0 pitch deck"
+    frameborder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowfullscreen>
+  </iframe>
+  <p><a href="https://youtu.be/SfzO_ixs4Ao" target="_blank" rel="noopener noreferrer">Open the pitch deck in a new tab</a></p>
 </div>
 
 <div align="center">
-  <p><em>Product demo: end-to-end platform walkthrough</em></p>
-  <a href="https://www.loom.com/share/eb1ee9f3a4874794b2dc1eca253a649b" target="_blank" rel="noopener noreferrer">
-    <img src="https://cdn.loom.com/assets/img/og/loom-banner.png" alt="Watch the OHMS 2.0 product demo" width="720">
-  </a>
+  <iframe
+    width="720"
+    height="405"
+    src="https://www.loom.com/embed/eb1ee9f3a4874794b2dc1eca253a649b"
+    title="OHMS 2.0 product demo"
+    frameborder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowfullscreen>
+  </iframe>
+  <p><a href="https://www.loom.com/share/eb1ee9f3a4874794b2dc1eca253a649b" target="_blank" rel="noopener noreferrer">Open the demo in a new tab</a></p>
 </div>
 
 ## 🎯 Mission

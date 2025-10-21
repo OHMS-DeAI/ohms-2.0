@@ -8,6 +8,20 @@
 
 **Subscription-based AI agent platform that turns natural language instructions into autonomous agents, orchestrated entirely on-chain and powered by Internet Computer HTTPS outcalls to external LLM providers.**
 
+<div align="center">
+  <p><em>Watch the OHMS 2.0 pitch deck</em></p>
+  <a href="https://youtu.be/SfzO_ixs4Ao" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.youtube.com/vi/SfzO_ixs4Ao/maxresdefault.jpg" alt="Watch the OHMS 2.0 pitch deck" width="720">
+  </a>
+</div>
+
+<div align="center">
+  <p><em>Product demo: end-to-end platform walkthrough</em></p>
+  <a href="https://www.loom.com/share/eb1ee9f3a4874794b2dc1eca253a649b" target="_blank" rel="noopener noreferrer">
+    <img src="https://cdn.loom.com/assets/img/og/loom-banner.png" alt="Watch the OHMS 2.0 product demo" width="720">
+  </a>
+</div>
+
 ## 🎯 Mission
 - Enable anyone to compose powerful AI agents from plain-language goals.
 - Deliver verifiable, on-chain execution with transparent economics.

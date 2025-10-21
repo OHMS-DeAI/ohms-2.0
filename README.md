@@ -8,31 +8,14 @@
 
 **Subscription-based AI agent platform that turns natural language instructions into autonomous agents, orchestrated entirely on-chain and powered by Internet Computer HTTPS outcalls to external LLM providers.**
 
-<div align="center">
-  <iframe
-    width="720"
-    height="405"
-    src="https://www.youtube.com/embed/SfzO_ixs4Ao"
-    title="OHMS 2.0 pitch deck"
-    frameborder="0"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    allowfullscreen>
-  </iframe>
-  <p><a href="https://youtu.be/SfzO_ixs4Ao" target="_blank" rel="noopener noreferrer">Open the pitch deck in a new tab</a></p>
-</div>
+| Pitch Deck | Product Demo |
+|------------|--------------|
+| [![OHMS 2.0 Pitch Deck Thumbnail](https://github.com/user-attachments/assets/f719efd0-e3a5-4393-b58d-01a072801cc1)](https://youtu.be/SfzO_ixs4Ao) | [![OHMS 2.0 Product Demo Thumbnail](https://github.com/user-attachments/assets/da1047ef-0a2b-46e3-a390-91195526fb93)](https://www.loom.com/share/eb1ee9f3a4874794b2dc1eca253a649b) |
+| 🎬 [Watch the Pitch Deck](https://youtu.be/SfzO_ixs4Ao) | 🎥 [Watch the Product Demo](https://www.loom.com/share/eb1ee9f3a4874794b2dc1eca253a649b) |
 
-<div align="center">
-  <iframe
-    width="720"
-    height="405"
-    src="https://www.loom.com/embed/eb1ee9f3a4874794b2dc1eca253a649b"
-    title="OHMS 2.0 product demo"
-    frameborder="0"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-    allowfullscreen>
-  </iframe>
-  <p><a href="https://www.loom.com/share/eb1ee9f3a4874794b2dc1eca253a649b" target="_blank" rel="noopener noreferrer">Open the demo in a new tab</a></p>
-</div>
+<!-- <img width="1363" height="1069" alt="Screenshot From 2025-10-21 03-27-14" src="https://github.com/user-attachments/assets/da1047ef-0a2b-46e3-a390-91195526fb93" /> -->
+
+<!-- <img width="1509" height="837" alt="Screenshot From 2025-10-21 03-29-23" src="https://github.com/user-attachments/assets/f719efd0-e3a5-4393-b58d-01a072801cc1" /> -->
 
 ## 🎯 Mission
 - Enable anyone to compose powerful AI agents from plain-language goals.
